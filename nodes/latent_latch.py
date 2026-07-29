@@ -167,6 +167,11 @@ class LatentLatch(io.ComfyNode):
                         "manually."
                     ),
                 ),
+                io.Boolean.Input(
+                    "block",
+                    default=True,
+                    tooltip="Czy obraz jest zatrzaśnięty. Jeśli False, pomija pamięć i pobiera z wejścia.",
+                ),
             ],
             outputs=[
                 io.Latent.Output(
@@ -180,21 +185,20 @@ class LatentLatch(io.ComfyNode):
     # ── Cache control ─────────────────────────────────────────────────────
 
     @classmethod
-    def fingerprint_inputs(cls, latent_input=None, latch_version="0"):
-        """Return the latch_version widget value so ComfyUI's cache
-        stays valid as long as the version doesn't change. The Refresh
-        button bumps this value → cache miss → re-execute."""
-        return latch_version
+    def fingerprint_inputs(cls, latent_input=None, latch_version="0", block=True):
+        """Return the latch_version and block state so ComfyUI's cache
+        stays valid. Changing block state invalidates cache."""
+        return f"{latch_version}_{block}"
 
     # ── Lazy evaluation ───────────────────────────────────────────────────
 
     @classmethod
-    def check_lazy_status(cls, latent_input=None, latch_version="0"):
+    def check_lazy_status(cls, latent_input=None, latch_version="0", block=True):
         """Decide whether upstream needs to run.
 
-        If a latched file exists on disk AND we are not in force-refresh
-        mode, return [] (don't need any inputs). Otherwise request
-        ``latent_input`` so upstream executes.
+        If block is True and a latched file exists on disk AND we are not 
+        in force-refresh mode, return [] (don't need any inputs). 
+        Otherwise request ``latent_input`` so upstream executes.
         """
         unique_id = str(cls.hidden.unique_id)
 
@@ -205,11 +209,11 @@ class LatentLatch(io.ComfyNode):
                 return ["latent_input"]
             return []
 
-        # Latched file on disk → skip upstream entirely.
-        if _has_latched_file(unique_id):
+        # Latched file on disk AND block is True → skip upstream entirely.
+        if block and _has_latched_file(unique_id):
             return []
 
-        # No file → need upstream data.
+        # No file or block is False → need upstream data.
         if latent_input is None:
             return ["latent_input"]
         return []
@@ -217,7 +221,7 @@ class LatentLatch(io.ComfyNode):
     # ── Execution ─────────────────────────────────────────────────────────
 
     @classmethod
-    def execute(cls, latent_input=None, latch_version="0") -> io.NodeOutput:
+    def execute(cls, latent_input=None, latch_version="0", block=True) -> io.NodeOutput:
         unique_id = str(cls.hidden.unique_id)
 
         # Try loading from disk first (covers restart / cache-clear cases).
