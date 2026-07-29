@@ -1,0 +1,13 @@
+[project]
+name = "comfyui-min-core"
+version = "0.1.0"
+description = "Personal SDXL workflow nodes for ComfyUI."
+requires-python = ">=3.10"
+
+[project.urls]
+Repository = "https://github.com/placeholder/ComfyUI-Min-Core"
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "Min-Core"
+Icon = ""
