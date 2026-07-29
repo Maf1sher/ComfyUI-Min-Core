@@ -5,4 +5,8 @@
 #   from .my_node import MyNode
 #   NODE_CLASS_LIST = [MyNode]
 
-NODE_CLASS_LIST = []
+from .latent_latch import LatentLatch
+
+NODE_CLASS_LIST = [
+    LatentLatch,
+]

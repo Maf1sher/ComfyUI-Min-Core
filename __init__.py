@@ -10,3 +10,7 @@ class MinCoreExtension(ComfyExtension):
 
 async def comfy_entrypoint() -> MinCoreExtension:
     return MinCoreExtension()
+
+
+WEB_DIRECTORY = "./web"
+__all__ = ["WEB_DIRECTORY", "comfy_entrypoint"]

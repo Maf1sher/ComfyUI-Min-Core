@@ -1,26 +1,9 @@
 # ComfyUI-Min-Core
 
-Personal collection of custom ComfyUI nodes for SDXL workflows.
+A personal collection of custom ComfyUI nodes created specifically for advanced SDXL workflows. This pack focuses on adding specialized workflow-optimization tools, logic nodes, and utility wrappers that streamline the ComfyUI experience.
 
-## Structure
+## Available Nodes
 
-```
-ComfyUI-Min-Core/
-├── __init__.py          # Extension entrypoint loaded by ComfyUI
-├── nodes/
-│   └── __init__.py      # NODE_CLASS_LIST registry
-├── pyproject.toml
-├── requirements.txt
-└── AGENTS.md            # AI coding instructions (auto-loaded)
-```
+Below is the list of nodes included in this package. For a detailed description of each node, please click on the link to its dedicated documentation file.
 
-## Adding a new node
-
-1. Create `nodes/my_node.py` with your `io.ComfyNode` subclass.
-2. Import it in `nodes/__init__.py` and append the class to `NODE_CLASS_LIST`.
-3. Restart ComfyUI — the node will appear under the `Min-Core` category.
-
-## Node conventions
-
-Nodes use the modern `comfy_api.latest` API (`io.ComfyNode`, `io.Schema`,
-`io.NodeOutput`). Category for all nodes in this pack: `"Min-Core"`.
+* **[Latent Latch](doc/latent_latch.md)** — A savepoint/checkpoint mechanism specifically designed for latent data. It optimizes workflows with long generation times or multiple samplers by stopping upstream execution if it already has a saved latent for the given execution path.
