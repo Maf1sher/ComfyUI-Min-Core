@@ -6,7 +6,9 @@
 #   NODE_CLASS_LIST = [MyNode]
 
 from .latent_latch import LatentLatch
+from .mask_painter_latch import MaskPainterLatch
 
 NODE_CLASS_LIST = [
     LatentLatch,
+    MaskPainterLatch,
 ]
