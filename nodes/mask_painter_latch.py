@@ -549,10 +549,6 @@ class MaskPainterLatch(io.ComfyNode):
         img_mtime = _backup_mtime(unique_id, "image")
         mask_mtime = _backup_mtime(unique_id, "mask")
         fp = f"{latch_version}_{block_image}_{block_mask}_{img_mtime}_{mask_mtime}"
-        debug_path = os.path.join(folder_paths.get_temp_directory(), "mincore_debug.txt")
-        with open(debug_path, "a") as f:
-            iw = kwargs.get("image_widget", "MISSING")
-            f.write(f"[MaskPainterLatch {unique_id}] fingerprint: {fp} | image={'Yes' if image is not None else 'No'} | iw={iw}\n")
         return fp
 
     # ── Lazy evaluation ───────────────────────────────────────────────────
@@ -627,9 +623,6 @@ class MaskPainterLatch(io.ComfyNode):
         block_mask=True,
     ) -> io.NodeOutput:
         unique_id = str(cls.hidden.unique_id)
-        debug_path = os.path.join(folder_paths.get_temp_directory(), "mincore_debug.txt")
-        with open(debug_path, "a") as f:
-            f.write(f"[MaskPainterLatch {unique_id}] EXECUTING | image={'Yes' if image is not None else 'No'} | iw={image_widget}\n")
 
         force_use_image = unique_id in _pending_execute_image
         if force_use_image:
