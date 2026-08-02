@@ -5,6 +5,37 @@ const NODE_TYPE = "MinCore_LatentLatch";
 const _LATCH_COLOR = "#1b3a4b";
 const _LATCH_BG_COLOR = "#0f232e";
 
+// ── Prompt link removal ───────────────────────────────────────────────────────
+//
+// ComfyUI's cache key includes ALL ancestor node signatures.  Even though
+// lazy evaluation prevents upstream execution, a changed ancestor (e.g. a
+// KSampler with a new random seed) invalidates the cache key of this node,
+// forcing it to re-execute — defeating the entire latch mechanism.
+//
+// The fix: before the prompt is sent to the backend, remove linked inputs
+// that the node doesn't actually need (block=True + backup exists on disk).
+// Without the link in the prompt, the ancestor is NOT part of the cache
+// signature, so the cache stays valid and the node is skipped.
+
+// Cached backup status per node_id.  Updated on execution and on load.
+const _backupStatus = {}; // nodeId -> bool
+
+async function _refreshBackupStatus(nodeIds) {
+    if (nodeIds.length === 0) return;
+    try {
+        const res = await api.fetchApi(
+            `/mincore/latch/backup_status?node_ids=${nodeIds.join(",")}`,
+            { cache: "no-store" }
+        );
+        if (res.ok) {
+            const data = await res.json();
+            for (const [nid, has] of Object.entries(data)) {
+                _backupStatus[nid] = !!has;
+            }
+        }
+    } catch (_) {}
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Queue a single node by generating the prompt and filtering the graph down
@@ -76,6 +107,9 @@ function setupLatentLatchNode(node) {
 
         // Instant visual feedback
         _updateLatchStatus(node, false);
+
+        // Mark as no backup (so prompt manipulation won't strip link)
+        _backupStatus[String(node.id)] = false;
 
         // Tell backend to force refresh
         try {
@@ -183,6 +217,7 @@ function setupLatentLatchNode(node) {
             .then(data => {
                 if (data.latched) {
                     _updateLatchStatus(node, true);
+                    _backupStatus[String(node.id)] = true;
                 }
             })
             .catch(() => {});
@@ -201,9 +236,55 @@ api.addEventListener("executed", ({ detail }) => {
         const isLatched = Array.isArray(out.latched) ? !!out.latched[0] : !!out.latched;
         if (isLatched) {
             _updateLatchStatus(node, true);
+            _backupStatus[String(node.id)] = true;
         }
     }
 });
+
+// ── Prompt manipulation: strip blocked upstream links ─────────────────────────
+//
+// We monkey-patch app.graphToPrompt so that before the prompt is sent,
+// we remove the `latent_input` link from any LatentLatch node that has
+// block=True and a backup file on disk.  This prevents the cache system
+// from including upstream ancestors in the cache key.
+
+const _origGraphToPrompt = app.graphToPrompt.bind(app);
+app.graphToPrompt = async function () {
+    // Collect LatentLatch node IDs that need a status check
+    const latchNodeIds = [];
+    if (app.graph) {
+        for (const node of app.graph._nodes || []) {
+            if (node.comfyClass === NODE_TYPE && node.id != null && node.id >= 0) {
+                const nid = String(node.id);
+                if (!(nid in _backupStatus)) {
+                    latchNodeIds.push(nid);
+                }
+            }
+        }
+    }
+    // Fetch any unknown backup statuses
+    if (latchNodeIds.length > 0) {
+        await _refreshBackupStatus(latchNodeIds);
+    }
+
+    const result = await _origGraphToPrompt();
+    if (!result?.output) return result;
+
+    for (const [nodeId, nodeData] of Object.entries(result.output)) {
+        if (nodeData.class_type !== NODE_TYPE) continue;
+        const inputs = nodeData.inputs;
+        if (!inputs) continue;
+
+        // Only strip if block=True AND backup exists on disk
+        const block = inputs.block;
+        const hasBackup = _backupStatus[nodeId];
+        if (block && hasBackup && Array.isArray(inputs.latent_input)) {
+            delete inputs.latent_input;
+        }
+    }
+
+    return result;
+};
 
 // ── Extension registration ────────────────────────────────────────────────────
 

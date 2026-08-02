@@ -43,6 +43,8 @@ _pb_id_map: dict[str, tuple[str, dict, dict | None]] = {}
 # (node_id, abs_path) → pb_id
 _pb_name_map: dict[tuple, str] = {}
 
+_user_edited_pb_ids: set[str] = set()
+
 # node_id → (images_tensor_id, last_pb_id)
 _pb_cache: dict[str, tuple[int, str]] = {}
 
@@ -143,6 +145,19 @@ def _delete_backup_image(node_id: str) -> None:
 
 def _has_backup_image(node_id: str) -> bool:
     return os.path.isfile(_image_backup_path(node_id))
+
+
+def _backup_mtime(node_id: str, kind: str) -> str:
+    """Return the mtime of a backup file as a string, or '0' if missing.
+
+    Used by ``fingerprint_inputs`` to produce a stable cache key that
+    only changes when the underlying backup file is actually rewritten.
+    """
+    p = _image_backup_path(node_id) if kind == "image" else _mask_backup_path(node_id)
+    try:
+        return str(os.path.getmtime(p))
+    except OSError:
+        return "0"
 
 
 # ── Mask conventions ──────────────────────────────────────────────────────────
@@ -305,6 +320,7 @@ async def _bridge_set(request: web.Request) -> web.Response:
 
     item = {"filename": filename, "subfolder": subfolder, "type": ftype}
     pb_id = _set_pb_image(node_id, abs_path, item)
+    _user_edited_pb_ids.add(pb_id)
 
     # Mirror alpha to persistent backup.
     try:
@@ -365,6 +381,7 @@ async def _clear(request: web.Request) -> web.Response:
     # Invalidate registrations.
     for k in candidate_keys:
         _pb_id_map.pop(k, None)
+        _user_edited_pb_ids.discard(k)
     for k in [k for k in _pb_name_map if k[0] == node_id]:
         _pb_name_map.pop(k, None)
     _pb_cache.pop(node_id, None)
@@ -386,6 +403,7 @@ async def _refresh_image(request: web.Request) -> web.Response:
     # Invalidate pb registrations so a new editor PNG is built.
     for k in [k for k in _pb_id_map if k.startswith(f"${node_id}-")]:
         _pb_id_map.pop(k, None)
+        _user_edited_pb_ids.discard(k)
     for k in [k for k in _pb_name_map if k[0] == node_id]:
         _pb_name_map.pop(k, None)
     _pb_cache.pop(node_id, None)
@@ -404,10 +422,32 @@ async def _refresh_mask(request: web.Request) -> web.Response:
     # Invalidate pb registrations so a new editor PNG is built.
     for k in [k for k in _pb_id_map if k.startswith(f"${node_id}-")]:
         _pb_id_map.pop(k, None)
+        _user_edited_pb_ids.discard(k)
     for k in [k for k in _pb_name_map if k[0] == node_id]:
         _pb_name_map.pop(k, None)
     _pb_cache.pop(node_id, None)
     return web.Response(status=200, text="OK")
+
+
+@routes.get("/mincore/mask_painter/backup_status")
+async def _backup_status(request: web.Request) -> web.Response:
+    """Return backup status for one or more node IDs (comma-separated).
+
+    Used by the frontend to decide whether upstream links can be removed
+    from the serialized prompt (breaking the cache dependency chain).
+    """
+    raw = request.rel_url.query.get("node_ids", "")
+    if not raw:
+        return web.Response(status=400, text="Missing node_ids")
+    result = {}
+    for nid in raw.split(","):
+        nid = nid.strip()
+        if nid:
+            result[nid] = {
+                "image": _has_backup_image(nid),
+                "mask": _has_backup_mask(nid),
+            }
+    return web.json_response(result)
 
 
 # ── Node ──────────────────────────────────────────────────────────────────────
@@ -435,6 +475,7 @@ class MaskPainterLatch(io.ComfyNode):
             inputs=[
                 io.Image.Input(
                     "image",
+                    optional=True,
                     lazy=True,
                     tooltip="Background image. Passed through to the IMAGE output.",
                 ),
@@ -488,7 +529,7 @@ class MaskPainterLatch(io.ComfyNode):
                 io.Mask.Output("MASK (inverted)"),
             ],
             is_output_node=True,
-            not_idempotent=True,
+            has_intermediate_output=True,
             hidden=[io.Hidden.unique_id, io.Hidden.prompt],
         )
 
@@ -499,12 +540,20 @@ class MaskPainterLatch(io.ComfyNode):
         cls,
         image=None,
         mask=None,
-        image_widget="",
         latch_version="0",
         block_image=True,
         block_mask=True,
+        **kwargs,
     ):
-        return f"{latch_version}_{block_image}_{block_mask}_{image_widget}"
+        unique_id = str(cls.hidden.unique_id)
+        img_mtime = _backup_mtime(unique_id, "image")
+        mask_mtime = _backup_mtime(unique_id, "mask")
+        fp = f"{latch_version}_{block_image}_{block_mask}_{img_mtime}_{mask_mtime}"
+        debug_path = os.path.join(folder_paths.get_temp_directory(), "mincore_debug.txt")
+        with open(debug_path, "a") as f:
+            iw = kwargs.get("image_widget", "MISSING")
+            f.write(f"[MaskPainterLatch {unique_id}] fingerprint: {fp} | image={'Yes' if image is not None else 'No'} | iw={iw}\n")
+        return fp
 
     # ── Lazy evaluation ───────────────────────────────────────────────────
 
@@ -578,6 +627,9 @@ class MaskPainterLatch(io.ComfyNode):
         block_mask=True,
     ) -> io.NodeOutput:
         unique_id = str(cls.hidden.unique_id)
+        debug_path = os.path.join(folder_paths.get_temp_directory(), "mincore_debug.txt")
+        with open(debug_path, "a") as f:
+            f.write(f"[MaskPainterLatch {unique_id}] EXECUTING | image={'Yes' if image is not None else 'No'} | iw={image_widget}\n")
 
         force_use_image = unique_id in _pending_execute_image
         if force_use_image:
@@ -616,42 +668,20 @@ class MaskPainterLatch(io.ComfyNode):
             if not block_mask or force_use_mask or not _has_backup_mask(unique_id):
                 use_upstream_mask = True
 
+        mask_dirty = False
+
         # 1) If upstream mask was provided, use it (replace semantics).
         if use_upstream_mask:
             alpha_uint8 = _alpha_from_input_mask(mask, H, W)
-            _save_backup_mask(unique_id, (255 - alpha_uint8).astype(np.uint8))
+            mask_dirty = True
             # Drop stale pb_id registrations.
             for k in [k for k in _pb_id_map if k.startswith(f"${unique_id}-")]:
                 _pb_id_map.pop(k, None)
+                _user_edited_pb_ids.discard(k)
             for k in [k for k in _pb_name_map if k[0] == unique_id]:
                 _pb_name_map.pop(k, None)
 
-        # 2) Try to recover alpha from the editor (clipspace save).
-        if alpha_uint8 is None:
-            iw = image_widget
-            if iw and iw.startswith("$") and iw in _pb_id_map:
-                editor_path, _, _ = _pb_id_map[iw]
-                if os.path.isfile(editor_path):
-                    try:
-                        a = np.array(
-                            PILImage.open(editor_path)
-                            .convert("RGBA")
-                            .getchannel("A"),
-                            dtype=np.uint8,
-                        )
-                        if a.shape == (H, W):
-                            alpha_uint8 = a
-                        else:
-                            alpha_uint8 = np.array(
-                                PILImage.fromarray(a, "L").resize(
-                                    (W, H), PILImage.LANCZOS
-                                ),
-                                dtype=np.uint8,
-                            )
-                    except Exception:
-                        alpha_uint8 = None
-
-        # 3) Fall back to disk backup.
+        # 2) Fall back to disk backup (this includes masks drawn in the UI and saved via /bridge/set)
         if alpha_uint8 is None:
             backup = _load_backup_mask(unique_id)
             if backup is not None:
@@ -662,7 +692,7 @@ class MaskPainterLatch(io.ComfyNode):
                         ),
                         dtype=np.uint8,
                     )
-                    _save_backup_mask(unique_id, backup)
+                    mask_dirty = True
                 alpha_uint8 = (255 - backup).astype(np.uint8)
 
         # ── Build editor PNG & register pb_id ─────────────────────────────
@@ -673,7 +703,7 @@ class MaskPainterLatch(io.ComfyNode):
         _pb_cache[unique_id] = (id(image_tensor), pb_id)
 
         # ── Persist mask backup ───────────────────────────────────────────
-        if alpha_uint8 is not None and (alpha_uint8 < 255).any():
+        if mask_dirty and alpha_uint8 is not None and (alpha_uint8 < 255).any():
             _save_backup_mask(unique_id, (255 - alpha_uint8).astype(np.uint8))
 
         # ── Compute output tensors ────────────────────────────────────────

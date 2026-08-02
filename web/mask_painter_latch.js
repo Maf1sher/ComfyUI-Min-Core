@@ -7,6 +7,35 @@ const _MASK_BG_COLOR = "#0f1f0f";
 const _LATCH_COLOR = "#1b3a4b";
 const _LATCH_BG_COLOR = "#0f232e";
 
+// ── Prompt link removal ───────────────────────────────────────────────────────
+//
+// ComfyUI's cache key includes ALL ancestor node signatures.  Even though
+// lazy evaluation prevents upstream execution, a changed ancestor invalidates
+// the cache key of this node, forcing it to re-execute.
+//
+// The fix: before the prompt is sent, remove linked inputs that the node
+// doesn't need (block=True + backup on disk).  Without the link in the
+// prompt, the ancestor is NOT part of the cache signature.
+
+// Cached backup status per node_id.
+const _backupStatus = {}; // nodeId -> { image: bool, mask: bool }
+
+async function _refreshBackupStatus(nodeIds) {
+    if (nodeIds.length === 0) return;
+    try {
+        const res = await api.fetchApi(
+            `/mincore/mask_painter/backup_status?node_ids=${nodeIds.join(",")}`,
+            { cache: "no-store" }
+        );
+        if (res.ok) {
+            const data = await res.json();
+            for (const [nid, status] of Object.entries(data)) {
+                _backupStatus[nid] = status;
+            }
+        }
+    } catch (_) {}
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getFileItem(baseType, path) {
@@ -166,6 +195,10 @@ function setupMaskPainterLatchNode(node) {
                 w._lock = true;
                 try {
                     w._value = await registerClipspacePath(node.id, v);
+                    const versionWidget = node.widgets?.find(obj => obj.name === "latch_version");
+                    if (versionWidget) {
+                        versionWidget.value = String(Date.now());
+                    }
                 } finally {
                     w._lock = false;
                 }
@@ -192,10 +225,15 @@ function setupMaskPainterLatchNode(node) {
             try {
                 const sp = new URLSearchParams(v[0].src.split("?")[1]);
                 const type = sp.get("type");
-                if (type) {
+                const filename = sp.get("filename") || "";
+                
+                // Allow user pastes (e.g. from Mask Editor) to trigger bridge/set, 
+                // but IGNORE execution thumbnails (which have MCMP- in their filename)
+                // to prevent an infinite cache miss loop!
+                if (type && !filename.includes("MCMP-")) {
                     let str = "";
                     if (sp.get("subfolder")) str += sp.get("subfolder") + "/";
-                    str += `${sp.get("filename")} [${type}]`;
+                    str += `${filename} [${type}]`;
                     w.value = str;
                 }
             } catch (_) {}
@@ -240,6 +278,9 @@ function setupMaskPainterLatchNode(node) {
         if (node.id == null || node.id < 0) return;
         _updateNodeStatus(node, false, false);
 
+        // Clear backup status so prompt manipulation won't strip links
+        delete _backupStatus[String(node.id)];
+
         try {
             await api.fetchApi(
                 `/mincore/mask_painter/clear?node_id=${encodeURIComponent(String(node.id))}`,
@@ -259,6 +300,9 @@ function setupMaskPainterLatchNode(node) {
     async function actionRefreshImage() {
         if (node.id == null || node.id < 0) return;
 
+        // Clear image backup status so link is preserved for this run
+        delete _backupStatus[String(node.id)];
+
         try {
             await api.fetchApi(
                 `/mincore/mask_painter/refresh_image?node_id=${encodeURIComponent(String(node.id))}`,
@@ -275,6 +319,9 @@ function setupMaskPainterLatchNode(node) {
 
     async function actionRefreshMask() {
         if (node.id == null || node.id < 0) return;
+
+        // Clear mask backup status so link is preserved for this run
+        delete _backupStatus[String(node.id)];
 
         try {
             await api.fetchApi(
@@ -414,6 +461,11 @@ function setupMaskPainterLatchNode(node) {
         },
     };
     node.addCustomWidget(rowWidget);
+
+    // ── Initial backup status (on workflow load) ─────────────────────────────
+    if (node.id != null && node.id >= 0) {
+        _refreshBackupStatus([String(node.id)]);
+    }
 }
 
 
@@ -458,8 +510,70 @@ api.addEventListener("executed", ({ detail }) => {
     // Store pb_id without re-triggering the value setter
     if (w && pb_id) w._value = pb_id;
 
+    // Update backup status cache
+    const nid = String(detail.node);
+    delete _backupStatus[nid];
+    _backupStatus[nid] = {
+        image: latched || !!out.images?.length,
+        mask: hasMask,
+    };
+
     _updateNodeStatus(node, hasMask, latched);
 });
+
+
+// ── Prompt manipulation: strip blocked upstream links ─────────────────────────
+//
+// We monkey-patch app.graphToPrompt so that before the prompt is sent,
+// we remove the `image` and/or `mask` links from any MaskPainterLatch node
+// that has the corresponding block=True and backup on disk.
+
+const _origGraphToPrompt = app.graphToPrompt.bind(app);
+app.graphToPrompt = async function () {
+    // Collect node IDs that need a status check
+    const nodeIds = [];
+    if (app.graph) {
+        for (const node of app.graph._nodes || []) {
+            if (node.comfyClass === NODE_TYPE && node.id != null && node.id >= 0) {
+                const nid = String(node.id);
+                if (!(nid in _backupStatus)) {
+                    nodeIds.push(nid);
+                }
+            }
+        }
+    }
+    if (nodeIds.length > 0) {
+        await _refreshBackupStatus(nodeIds);
+    }
+
+    const result = await _origGraphToPrompt();
+    if (!result?.output) return result;
+
+    for (const [nodeId, nodeData] of Object.entries(result.output)) {
+        if (nodeData.class_type !== NODE_TYPE) continue;
+        const inputs = nodeData.inputs;
+        if (!inputs) continue;
+
+        // Set image_widget to a constant so it doesn't cause spurious cache misses,
+        // but do not delete it, otherwise ComfyUI frontend validation fails.
+        inputs.image_widget = "";
+
+        const status = _backupStatus[nodeId];
+        if (!status) continue;
+
+        // Strip image link if blocked and backed up
+        if (inputs.block_image && status.image && Array.isArray(inputs.image)) {
+            delete inputs.image;
+        }
+
+        // Strip mask link if blocked and backed up
+        if (inputs.block_mask && status.mask && Array.isArray(inputs.mask)) {
+            delete inputs.mask;
+        }
+    }
+
+    return result;
+};
 
 
 // ── Extension registration ────────────────────────────────────────────────────
