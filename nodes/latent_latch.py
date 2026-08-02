@@ -128,6 +128,24 @@ async def _latch_status(request: web.Request) -> web.Response:
     return web.json_response({"latched": has_file})
 
 
+@routes.get("/mincore/latch/backup_status")
+async def _latch_backup_status(request: web.Request) -> web.Response:
+    """Return backup status for one or more node IDs (comma-separated).
+
+    Used by the frontend to decide whether upstream links can be removed
+    from the serialized prompt (breaking the cache dependency chain).
+    """
+    raw = request.rel_url.query.get("node_ids", "")
+    if not raw:
+        return web.Response(status=400, text="Missing node_ids")
+    result = {}
+    for nid in raw.split(","):
+        nid = nid.strip()
+        if nid:
+            result[nid] = _has_latched_file(nid)
+    return web.json_response(result)
+
+
 # ── Node ──────────────────────────────────────────────────────────────────────
 
 class LatentLatch(io.ComfyNode):
@@ -145,6 +163,7 @@ class LatentLatch(io.ComfyNode):
             display_name="Latent Latch",
             category="Min-Core",
             is_output_node=True,
+            has_intermediate_output=True,
             description=(
                 "Savepoint for latent data. Saves the latent to disk and "
                 "latches — subsequent runs return the saved latent without "
@@ -154,6 +173,7 @@ class LatentLatch(io.ComfyNode):
             inputs=[
                 io.Latent.Input(
                     "latent_input",
+                    optional=True,
                     lazy=True,
                     tooltip="Latent to capture and latch.",
                 ),
@@ -186,9 +206,16 @@ class LatentLatch(io.ComfyNode):
 
     @classmethod
     def fingerprint_inputs(cls, latent_input=None, latch_version="0", block=True):
-        """Return the latch_version and block state so ComfyUI's cache
-        stays valid. Changing block state invalidates cache."""
-        return f"{latch_version}_{block}"
+        """Return a stable fingerprint based on latch_version, block state,
+        and the modification time of the latched file on disk.  This ensures
+        ComfyUI's cache is only invalidated when the underlying data actually
+        changes."""
+        unique_id = str(cls.hidden.unique_id)
+        try:
+            mtime = str(os.path.getmtime(_latch_path(unique_id)))
+        except OSError:
+            mtime = "0"
+        return f"{latch_version}_{block}_{mtime}"
 
     # ── Lazy evaluation ───────────────────────────────────────────────────
 

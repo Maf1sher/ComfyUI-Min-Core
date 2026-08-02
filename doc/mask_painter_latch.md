@@ -49,6 +49,12 @@ The node changes color to indicate its current state:
 - **Dark green** — A mask is currently painted.
 - **Dark blue** — The node is latched (data loaded from disk, upstream not executed). This appears when there is no mask painted but backup data exists.
 
+## Cache Stability
+
+When image and mask data are latched to disk, the node produces a **stable cache fingerprint** based on the modification times of the saved backup files. This means that downstream nodes can re-run **without forcing upstream nodes to re-execute** — the latched data is simply loaded from disk.
+
+This is especially useful in multi-sampler pipelines: you can iterate on later stages (or repaint only the mask) without regenerating earlier results.
+
 ## Storage
 
 Both the mask and the background image are saved to `input/mincore_mask_painter_latch/` inside your ComfyUI installation:

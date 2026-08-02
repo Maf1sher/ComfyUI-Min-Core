@@ -28,6 +28,12 @@ The node provides visual feedback to indicate its current state:
 - **Default color:** The node is not latched (no file saved).
 - **Dark blue color:** The node is currently latched. Running the workflow will use the saved data without executing upstream nodes.
 
+## Cache Stability
+
+When a latent is latched, the node produces a **stable cache fingerprint** based on the modification time of the saved file on disk. This means that downstream nodes (e.g. a second KSampler) can re-run **without forcing upstream nodes to re-execute** — the latched latent is simply loaded from disk.
+
+This is especially useful in multi-sampler pipelines: you can iterate on later stages without regenerating earlier (potentially expensive) results.
+
 ## Storage
 The latched latents are saved as SafeTensors files in the `input/mincore_latent_latch/` directory inside your ComfyUI installation.
 - **Persistence:** Because the files are stored in `input/`, they survive ComfyUI restarts and temp directory cleanups.
