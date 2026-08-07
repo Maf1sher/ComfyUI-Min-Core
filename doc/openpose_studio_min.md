@@ -67,6 +67,16 @@ without running downstream nodes.
 - **KPS** — Pose in POSE_KEYPOINT format (`{canvas_width, canvas_height, people}`)
   with flattened `[x, y, conf]` triplets in pixel space.
 
+### Viewport navigation
+
+- **Scroll wheel** — zoom in/out around the cursor position (range ~0.1× to 10×).
+- **Middle-button drag** — pan the viewport.
+- **Double-click on empty space** — reset zoom/pan to fit.
+
+Zoom/pan only affect the editor viewport; they never change the pose
+coordinates or the rendered outputs. Zoom is disabled while hand-edit mode is
+active.
+
 ## Format support
 
 Both **COCO-17** (Ultralytics/TF.js, 17 keypoints, no neck) and **COCO-18**

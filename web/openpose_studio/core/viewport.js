@@ -108,6 +108,8 @@ export class Viewport {
 	 */
 	applyWorldTransform(ctx) {
 		if (this.zoomScale !== 1 || this.zoomOffsetX !== 0 || this.zoomOffsetY !== 0) {
+			// translate-then-scale maps world -> zoom*world + offset, which is the
+			// exact inverse of screenToWorld's (view - offset) / zoom.
 			ctx.translate(this.zoomOffsetX, this.zoomOffsetY);
 			ctx.scale(this.zoomScale, this.zoomScale);
 		}
@@ -115,14 +117,18 @@ export class Viewport {
 
 	/**
 	 * Zoom by a factor around a world-space pivot point.
+	 * The pivot stays fixed on screen (its canvas position is unchanged).
+	 * Forward transform is canvas = world * zoomScale + zoomOffset, so the
+	 * offset must be adjusted by pivot * (oldScale - newScale) to keep the
+	 * pivot's canvas position invariant.
 	 * @param {number} factor
 	 * @param {{x:number, y:number}} pivot - world coordinate to zoom around
 	 */
 	zoomAround(factor, pivot) {
-		const newScale = Math.max(0.1, Math.min(10, this.zoomScale * factor));
-		const k = newScale / this.zoomScale;
-		this.zoomOffsetX = pivot.x - k * (pivot.x - this.zoomOffsetX);
-		this.zoomOffsetY = pivot.y - k * (pivot.y - this.zoomOffsetY);
+		const oldScale = this.zoomScale;
+		const newScale = Math.max(0.1, Math.min(10, oldScale * factor));
+		this.zoomOffsetX += pivot.x * (oldScale - newScale);
+		this.zoomOffsetY += pivot.y * (oldScale - newScale);
 		this.zoomScale = newScale;
 	}
 

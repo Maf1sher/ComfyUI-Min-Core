@@ -94,6 +94,10 @@ export class OpenPoseCanvas2D {
 		this.logicalWidth = options.logicalWidth || 768;
 		this.logicalHeight = options.logicalHeight || 512;
 		
+		// Viewport navigation state (middle-button pan)
+		this._isPanning = false;
+		this._panStart = null;
+		
 		// Core subsystems (see core/ARCHITECTURE.md)
 		this.model = new PoseModel({
 			logicalWidth: this.logicalWidth,
@@ -210,6 +214,7 @@ export class OpenPoseCanvas2D {
 		this.handlePointerLeave = this.handlePointerLeave.bind(this);
 		this.handleDoubleClick = this.handleDoubleClick.bind(this);
 		this.handleContextMenu = this.handleContextMenu.bind(this);
+		this.handleWheel = this.handleWheel.bind(this);
 		
 		// Attach events
 		this.canvas.addEventListener('pointerdown', this.handlePointerDown);
@@ -218,6 +223,7 @@ export class OpenPoseCanvas2D {
 		this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
 		this.canvas.addEventListener('dblclick', this.handleDoubleClick);
 		this.canvas.addEventListener('contextmenu', this.handleContextMenu);
+		this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
 		
 		// Initialize canvas dimensions with HiDPI support
 		this.initializeCanvasSize();
@@ -297,6 +303,11 @@ export class OpenPoseCanvas2D {
 	}
 	
 	setSize(logicalWidth, logicalHeight, cssWidth, cssHeight) {
+		// Reset zoom/pan when the world-space (logical) dimensions change so the
+		// content never appears at an invalid offset in the new coordinate space.
+		if (logicalWidth !== this.logicalWidth || logicalHeight !== this.logicalHeight) {
+			this.viewport.resetZoom();
+		}
 		this.logicalWidth = logicalWidth;
 		this.logicalHeight = logicalHeight;
 		this.viewport.logicalWidth = logicalWidth;
@@ -1205,6 +1216,8 @@ export class OpenPoseCanvas2D {
 		this.canvas.removeEventListener('pointerup', this.handlePointerUp);
 		this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
 		this.canvas.removeEventListener('dblclick', this.handleDoubleClick);
+		this.canvas.removeEventListener('contextmenu', this.handleContextMenu);
+		this.canvas.removeEventListener('wheel', this.handleWheel);
 		this.canvasResizeObserver?.disconnect();
 		if (this.handEditButtons) {
 			Object.values(this.handEditButtons).forEach((button) => button.remove());
@@ -1428,6 +1441,11 @@ export class OpenPoseCanvas2D {
 				       this.updateHandEditControls();
 				       return;
 			       }
+			       // Apply the viewport zoom/pan transform to all content drawing.
+			       // The background fill above (clearAndFillBackground) stays in
+			       // viewport space so the full canvas remains covered.
+			       ctx.save();
+			       this.viewport.applyWorldTransform(ctx);
 			       // Draw grid
 			       if (this.gridEnabled) {
 				       debugLog('[OpenPoseCanvas2D] Drawing grid');
@@ -1501,6 +1519,7 @@ export class OpenPoseCanvas2D {
 			       if (this.marqueeRect !== null) {
 				       this.drawMarqueeRect();
 			       }
+			       ctx.restore();
 			       this.updateHandEditControls();
 		
 		} catch (error) {
@@ -2902,7 +2921,28 @@ export class OpenPoseCanvas2D {
 		this.requestRedraw();
 	}
 	
+	handleWheel(evt) {
+		// Zoom the viewport around the cursor position. Zooming is disabled in
+		// hand-edit mode, which uses its own view transform.
+		if (this.handEditMode) {
+			return;
+		}
+		evt.preventDefault();
+		const worldPoint = this.screenToLogical(evt.clientX, evt.clientY);
+		const factor = evt.deltaY < 0 ? 1.1 : 1 / 1.1;
+		this.viewport.zoomAround(factor, worldPoint);
+		this.requestRedraw();
+	}
+
 	handlePointerDown(evt) {
+		// Middle button (button === 1) pans the viewport.
+		if (evt.button === 1) {
+			this._isPanning = true;
+			this._panStart = { x: evt.clientX, y: evt.clientY };
+			this.canvas.setPointerCapture(evt.pointerId);
+			evt.preventDefault();
+			return;
+		}
 		// Only the primary (left) button may start a drag.  Secondary clicks are
 		// handled separately via the contextmenu handler (right-click delete).
 		if (evt.button !== 0) {
@@ -3225,6 +3265,19 @@ export class OpenPoseCanvas2D {
 	}
 	
 	handlePointerMove(evt) {
+		// Active middle-button pan: move the viewport by the client-space delta.
+		if (this._isPanning && this._panStart) {
+			const rect = this.canvas.getBoundingClientRect();
+			const vw = this.viewport.getViewportWidth();
+			const vh = this.viewport.getViewportHeight();
+			const dx = (evt.clientX - this._panStart.x) * (vw / rect.width);
+			const dy = (evt.clientY - this._panStart.y) * (vh / rect.height);
+			this.viewport.panBy(dx, dy);
+			this._panStart = { x: evt.clientX, y: evt.clientY };
+			this.requestRedraw();
+			evt.preventDefault();
+			return;
+		}
 		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
 		if (this.handEditMode) {
 			this.handleHandEditPointerMove(pointer);
@@ -3452,6 +3505,16 @@ export class OpenPoseCanvas2D {
 		this.interaction.handlePointerMove(pointer, evt);
 	}
 	handlePointerUp(evt) {
+		// End middle-button pan
+		if (this._isPanning) {
+			this._isPanning = false;
+			this._panStart = null;
+			if (this.canvas.hasPointerCapture(evt.pointerId)) {
+				this.canvas.releasePointerCapture(evt.pointerId);
+			}
+			evt.preventDefault();
+			return;
+		}
 		if (this.handEditMode) {
 			this.handleHandEditPointerUp(evt);
 			return;
@@ -3494,6 +3557,9 @@ export class OpenPoseCanvas2D {
 	}
 	
 	handlePointerLeave(evt) {
+		if (this._isPanning) {
+			return;
+		}
 		if (this.handEditMode) {
 			if (this.activeDragMode === 'none' && this.handEditMode.hoveredKeypointId !== null) {
 				this.handEditMode.hoveredKeypointId = null;
@@ -3593,7 +3659,12 @@ export class OpenPoseCanvas2D {
 			if (hitPoseIdx !== null) break;
 		}
 
-		if (hitPoseIdx === null) return;
+		if (hitPoseIdx === null) {
+			// Double-click on empty space resets the viewport zoom/pan.
+			this.viewport.resetZoom();
+			this.requestRedraw();
+			return;
+		}
 
 		// Ensure the double-clicked pose becomes the active selection
 		if (this.selectedPoseIndex !== hitPoseIdx) {
