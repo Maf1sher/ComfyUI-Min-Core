@@ -255,6 +255,7 @@
   "pose_editor.label.opacity": "Opacidad",
   "pose_editor.btn.cancel": "Cancelar",
   "pose_editor.btn.apply": "Aplicar",
+	"pose_editor.btn.refresh_inputs":  "Actualizar entradas",
   "pose_editor.btn.remove_face": "Quitar cara",
   "pose_editor.btn.remove_hands": "Quitar manos",
   "pose_editor.label.preset_prev": "Preset anterior",

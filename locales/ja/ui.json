@@ -255,6 +255,7 @@
   "pose_editor.label.opacity": "不透明度",
   "pose_editor.btn.cancel": "キャンセル",
   "pose_editor.btn.apply": "適用",
+	"pose_editor.btn.refresh_inputs":  "入力を更新",
   "pose_editor.btn.remove_face": "顔を削除",
   "pose_editor.btn.remove_hands": "手を削除",
   "pose_editor.label.preset_prev": "前のプリセット",

@@ -255,6 +255,7 @@
   "pose_editor.label.opacity": "不透明度",
   "pose_editor.btn.cancel": "取消",
   "pose_editor.btn.apply": "应用",
+	"pose_editor.btn.refresh_inputs":  "刷新输入",
   "pose_editor.btn.remove_face": "移除面部",
   "pose_editor.btn.remove_hands": "移除手部",
   "pose_editor.label.preset_prev": "上一个预设",

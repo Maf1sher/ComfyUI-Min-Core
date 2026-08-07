@@ -256,6 +256,7 @@
   "pose_editor.label.opacity": "불투명도",
   "pose_editor.btn.cancel": "취소",
   "pose_editor.btn.apply": "적용",
+	"pose_editor.btn.refresh_inputs":  "입력 새로고침",
   "pose_editor.btn.remove_face": "얼굴 제거",
   "pose_editor.btn.remove_hands": "손 제거",
   "pose_editor.label.preset_prev": "이전 프리셋",

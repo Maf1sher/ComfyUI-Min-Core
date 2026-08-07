@@ -404,6 +404,29 @@ function renderPoseToDataURL(poseJson, previewWidth = PREVIEW_WIDTH, previewHeig
  * Handles both COCO-17 (TensorFlow.js / Ultralytics order) and COCO-18 (OpenPose order)
  * COCO-17 poses are automatically remapped to COCO-18 index space for internal use
  */
+
+// ── Node self-queueing ────────────────────────────────────────────────────────
+//
+// Queue a single node via ComfyUI's native partial-execution path (added in
+// 1.19.6): app.queuePrompt(0, 1, [nodeId]) sends the full prompt with a
+// partial_execution_targets list, and the backend resolves the upstream
+// subgraph itself. The node is an output node, so the prompt validates and its
+// upstream dependencies (LoadImage, DWPose, ...) execute along with it.
+async function _queueNode(node) {
+    if (node?.id == null || node.id < 0) return;
+    try {
+        await app.queuePrompt(0, 1, [String(node.id)]);
+    } catch (err) {
+        console.error("OpenPose Studio queue error:", err);
+        app.extensionManager?.toast?.add?.({
+            severity: "error",
+            summary: "Queue Failed",
+            detail: String(err),
+            life: 6000,
+        });
+    }
+}
+
 class OpenPosePanel {
     node = null;
 	canvas = null;
@@ -1939,7 +1962,20 @@ class OpenPosePanel {
 		this.allowCommitToNode = true;
 		this.saveToNode(true);
 		this.confirmed = true;
+		// Re-execute this node (and its upstream deps) so the backend picks up
+		// connected inputs (background_image, pose_keypoint) and sends fresh
+		// state back through the executed event.
+		_queueNode(this.node);
 		this.panel.close();
+	}
+
+	/**
+	 * Queue only this node (and its upstream dependencies) for execution
+	 * without closing the editor. Used by the toolbar Refresh button so the
+	 * node-input background / pose_keypoint refresh in place.
+	 */
+	queueNodeExecution() {
+		_queueNode(this.node);
 	}
 
 	hasUnsavedChanges() {

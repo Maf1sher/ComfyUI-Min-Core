@@ -256,6 +256,7 @@
   "pose_editor.label.opacity": "Прозрачность",
   "pose_editor.btn.cancel": "Отмена",
   "pose_editor.btn.apply": "Применить",
+	"pose_editor.btn.refresh_inputs":  "Обновить входы",
   "pose_editor.btn.remove_face": "Удалить лицо",
   "pose_editor.btn.remove_hands": "Удалить руки",
   "pose_editor.label.preset_prev": "Предыдущий пресет",

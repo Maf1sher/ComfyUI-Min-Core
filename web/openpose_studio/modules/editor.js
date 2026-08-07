@@ -430,6 +430,9 @@ export const poseEditorCanvasWorkflow = {
 			this.undoButton = undoActionBtn;
 		}
 		container.querySelector('[data-action="ok"]').addEventListener("click", () => this.confirmAndClose());
+		container.querySelector('[data-action="queue-node"]')?.addEventListener("click", () => {
+			this.queueNodeExecution();
+		});
 		container.querySelector('[data-action="preset-prev"]').addEventListener("click", () => {
 			this.stepPreset(-1);
 		});
@@ -3435,6 +3438,7 @@ function buildPoseEditorOverlayHtml() {
             </div>
             <div class="openpose-spacer"></div>
             <div class="openpose-footer-actions-row">
+                <button class="openpose-btn" data-action="queue-node" title="${t("pose_editor.btn.refresh_inputs")}">${t("pose_editor.btn.refresh_inputs")}</button>
                 <button class="openpose-btn openpose-cancel-btn" data-action="cancel">${t("pose_editor.btn.cancel")}</button>
                 <button class="openpose-btn openpose-apply-btn" data-action="ok">${t("pose_editor.btn.apply")}</button>
             </div>

@@ -256,6 +256,7 @@
   "pose_editor.label.opacity": "Deckkraft",
   "pose_editor.btn.cancel": "Abbrechen",
   "pose_editor.btn.apply": "Anwenden",
+	"pose_editor.btn.refresh_inputs":  "Eingaben aktualisieren",
   "pose_editor.btn.remove_face": "Gesicht entfernen",
   "pose_editor.btn.remove_hands": "Hände entfernen",
   "pose_editor.label.preset_prev": "Vorherige Voreinstellung",

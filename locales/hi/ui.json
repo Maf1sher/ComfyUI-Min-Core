@@ -256,6 +256,7 @@
     "pose_editor.label.opacity":  "अपारदर्शिता",
     "pose_editor.btn.cancel":  "रद्द करें",
     "pose_editor.btn.apply":  "लागू करें",
+	"pose_editor.btn.refresh_inputs":  "इनपुट रीफ्रेश करें",
     "pose_editor.btn.remove_face":  "चेहरा हटाएँ",
     "pose_editor.btn.remove_hands":  "हाथ हटाएँ",
     "pose_editor.label.preset_prev":  "पिछला प्रीसेट",

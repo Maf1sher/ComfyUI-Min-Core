@@ -1359,6 +1359,7 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
             node_id="MinCore_OpenPoseStudio",
             display_name="OpenPose Studio Min",
             category="Min-Core",
+            is_output_node=True,
             description=(
                 "Render a pose from the OpenPose Studio editor. Converts the "
                 "editor JSON into an IMAGE preview, filtered JSON, and the "

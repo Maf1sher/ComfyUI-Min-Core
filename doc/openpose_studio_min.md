@@ -50,7 +50,15 @@ gallery, merger, render style, localization) and converts the edited pose into:
   the background of the editor canvas (like the local file-picker background).
   The canvas automatically resizes to the image dimensions and existing
   keypoints are scaled proportionally. The image is only used as an editor
-  reference; it is not composited into the IMAGE output.
+  reference; it is not composited into the IMAGE output. Connected inputs
+  (`background_image`, `pose_keypoint`) are picked up when the node is queued:
+  clicking **Apply** in the editor queues just this node (and its upstream
+  dependencies), and the editor toolbar's **Refresh inputs** button re-queues
+  it without closing the panel so the background refreshes in place.
+
+The node is registered as an output node, so it can be queued on its own (e.g.
+via the editor's **Apply** / **Refresh inputs** buttons) to fetch its inputs
+without running downstream nodes.
 
 ### Outputs
 
