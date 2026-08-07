@@ -67,6 +67,8 @@ class MyNode(io.ComfyNode):
 - Keep each node file focused on one node or one tightly related group.
 - Do not add dependencies to `requirements.txt` unless the node cannot work
   without them. Prefer what ComfyUI already bundles (torch, PIL, numpy).
+- When using an external library, always add it to `requirements.txt` if it is
+  not already listed there.
 - No internet requests from node code.
 - Follow the ComfyUI AGENTS.md rules in the parent directory for dtype, device,
   memory, and style guidance — they apply here too.
