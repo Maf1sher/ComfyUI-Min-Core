@@ -1,5 +1,7 @@
 # OpenPose Studio Min
 
+![OpenPose Studio Min node in ComfyUI](img/openpose_studio_node.png)
+
 ## Overview
 
 OpenPose Studio Min is a pose editor + renderer node for ComfyUI, ported from the
@@ -32,6 +34,62 @@ gallery, merger, render style, localization) and converts the edited pose into:
    pose JSON as JSON, and the converted pose as KPS for controlnet nodes.
 4. **DWPose passthrough:** If a `POSE_KEYPOINT` is connected to the `pose_keypoint`
    input, it is serialized to JSON and used instead of the `pose_json` widget value.
+
+### Editor interface
+
+![OpenPose Studio Min editor interface](img/openpose_studio_ui.png)
+
+The editor panel is a full-window overlay divided into tabs:
+
+- **Pose Editor** — the main canvas plus the left control sidebar.
+- **Gallery** — browse the bundled pose library and insert poses.
+- **Poses Merger** — merge multiple pose JSON files into one canvas.
+- **Render** — adjust the runtime render style (line width, keypoint radius,
+  colors for body / hands / face).
+- **Guide** — quick reference for where poses come from and how to import them.
+- **About** — version info, update checks and support links.
+
+The **Pose Editor** tab is laid out as follows:
+
+- **Left sidebar:**
+  - **Preset** — dropdown with the bundled presets, prev/next/reload buttons and
+    a live preview thumbnail.
+  - **Action row** — add a pose (**+**), remove the selected pose (**−**), clear
+    the canvas, undo the last edit.
+  - **JSON pose file** — **Load** / **Save** buttons to import/export pose JSON.
+  - **Canvas size** — width/height inputs (64–4096, step 64) plus a reset-size
+    button that restores the default 512×512 dimensions. Resizing scales the
+    existing keypoints proportionally.
+  - **Background** — **Load** / **Remove** a local background image, choose
+    `contain` or `cover` fit mode and an opacity slider. A connected
+    `background_image` input takes priority over the locally loaded one while
+    present (see Inputs). The **eye** button toggles the conditioning-area
+    overlay when `areas` is connected; without `areas` it shows a prompt that
+    links to the conditioning pipeline pack instead.
+- **Right sidebar:** the COCO keypoint list for the selected pose — click a
+  keypoint name to select it on the canvas, hover to highlight, use **X** to
+  delete it.
+- **Canvas:** the editing area described below.
+- **Footer:** **Refresh inputs** (re-queues just this node to fetch connected
+  inputs without closing the panel), **Cancel**, **Apply** (commits the pose to
+  the node and queues this node).
+
+### Editing
+
+- **Move** keypoints by dragging them; drag a pose body to move the whole pose.
+- **Multi-select:** **Shift+Click** toggles keypoints; **Shift+drag** draws a
+  marquee rectangle to select several keypoints at once. Dragging any selected
+  keypoint moves the whole selection.
+- **Pose transforms:** the selection box offers scale, rotate and mirror
+  handles (vertical / horizontal).
+- **Delete:** right-click a keypoint, or drag it into the red trash target in
+  the top-right corner.
+- **Connect skeleton:** double-click a loose keypoint to auto-complete the
+  missing chain to the nearest neighbor along the skeleton topology.
+- **Hand editor:** with a hand selected, click its **edit** handle to enter
+  hand-edit mode and refine the 21 finger keypoints in a zoomed view.
+- **Viewport:** scroll wheel zooms, middle-button drag pans, double-click on
+  empty space resets the view (see Viewport navigation below).
 
 ### Inputs
 
