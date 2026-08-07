@@ -209,6 +209,7 @@ export class OpenPoseCanvas2D {
 		this.handlePointerUp = this.handlePointerUp.bind(this);
 		this.handlePointerLeave = this.handlePointerLeave.bind(this);
 		this.handleDoubleClick = this.handleDoubleClick.bind(this);
+		this.handleContextMenu = this.handleContextMenu.bind(this);
 		
 		// Attach events
 		this.canvas.addEventListener('pointerdown', this.handlePointerDown);
@@ -216,6 +217,7 @@ export class OpenPoseCanvas2D {
 		this.canvas.addEventListener('pointerup', this.handlePointerUp);
 		this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
 		this.canvas.addEventListener('dblclick', this.handleDoubleClick);
+		this.canvas.addEventListener('contextmenu', this.handleContextMenu);
 		
 		// Initialize canvas dimensions with HiDPI support
 		this.initializeCanvasSize();
@@ -2901,6 +2903,11 @@ export class OpenPoseCanvas2D {
 	}
 	
 	handlePointerDown(evt) {
+		// Only the primary (left) button may start a drag.  Secondary clicks are
+		// handled separately via the contextmenu handler (right-click delete).
+		if (evt.button !== 0) {
+			return;
+		}
 		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
 		if (this.handEditMode) {
 			this.handleHandEditPointerDown(evt, pointer);
@@ -3512,6 +3519,43 @@ export class OpenPoseCanvas2D {
 		}
 		// Update cursor to default
 		this.updateCursor();
+	}
+
+	/**
+	 * Right-click deletes the keypoint under the pointer.
+	 * Body keypoints are hit-tested against all poses (topmost first) and the
+	 * pose is selected before deletion.  In hand-edit mode the hovered hand
+	 * keypoint is removed from the edit buffer instead.
+	 * When no keypoint is hit the browser context menu is left untouched.
+	 */
+	handleContextMenu(evt) {
+		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
+		if (this.handEditMode) {
+			const keypointId = this.findNearestEditableHandKeypoint(pointer);
+			if (keypointId !== null) {
+				// Buffered change — committed on confirm, discarded on cancel
+				this.handEditMode.keypoints[keypointId] = null;
+				this.requestRedraw();
+				evt.preventDefault();
+			}
+			return;
+		}
+		const hit = this.hitTester.findKeypointAtPoint(this.poses, pointer, {
+			types: [KEYPOINT_TYPES.BODY]
+		});
+		if (hit) {
+			const pose = this.poses[hit.poseIndex];
+			if (pose && pose.keypoints) {
+				this.setSelectedPose(hit.poseIndex);
+				this.selectedKeypointIds.delete(hit.keypointId);
+				pose.keypoints[hit.keypointId] = null;
+				this.markKeypointEdited();
+				this.notifyChange('geometry');
+				this.updateCursor();
+				this.requestRedraw();
+			}
+			evt.preventDefault();
+		}
 	}
 
 	/**
