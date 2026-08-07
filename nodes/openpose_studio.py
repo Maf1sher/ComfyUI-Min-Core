@@ -11,6 +11,8 @@ style sync, and the Show String helper output node.
 import json
 import math
 import os
+import uuid
+from io import BytesIO
 
 import cv2
 import folder_paths
@@ -1142,6 +1144,69 @@ def get_pose_files():
 routes = PromptServer.instance.routes
 
 
+# ── Background image cache ───────────────────────────────────────────────────
+
+# Execution-time cache of editor background images (PNG bytes) keyed by a UUID
+# returned to the frontend in the UI output. Serves them via
+# GET /mincore/openpose/background_image/{uuid} so large images don't travel in
+# the executed event payload. Bounded size to avoid unbounded growth.
+_BACKGROUND_CACHE_MAX = 8
+_background_cache = {}
+
+
+def _tensor_to_png_bytes(tensor: torch.Tensor) -> bytes:
+    """Encode a ComfyUI image tensor (1, H, W, 3) float [0,1] RGB as PNG bytes."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return b""
+    try:
+        arr = tensor.detach().cpu().float().numpy()
+        if arr.ndim == 4:
+            arr = arr[0]
+        arr = np.clip(arr * 255.0, 0, 255).astype(np.uint8)
+        img = Image.fromarray(arr, "RGB")
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception as e:
+        print(f"[OpenPose Studio Min] Error encoding background image: {e}")
+        return b""
+
+
+def cache_background_image(tensor) -> tuple:
+    """Store an image tensor as PNG bytes; return (uuid, "WxH" or "")."""
+    if tensor is None:
+        return "", ""
+    data = _tensor_to_png_bytes(tensor)
+    if not data:
+        return "", ""
+    arr = tensor.detach().cpu().float().numpy()
+    if arr.ndim == 4:
+        arr = arr[0]
+    height, width = arr.shape[0], arr.shape[1]
+    token = uuid.uuid4().hex
+    _background_cache[token] = data
+    while len(_background_cache) > _BACKGROUND_CACHE_MAX:
+        oldest = next(iter(_background_cache))
+        del _background_cache[oldest]
+    return token, f"{width}x{height}"
+
+
+@routes.get("/mincore/openpose/background_image/{token}")
+async def get_background_image(request):
+    """Serve a cached editor background image by its cache token."""
+    token = request.match_info.get("token", "")
+    data = _background_cache.get(token)
+    if data is None:
+        return web.Response(status=404)
+    return web.Response(
+        body=data,
+        content_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @routes.get("/mincore/openpose/poses")
 async def list_poses(request):
     """List available pose files."""
@@ -1269,13 +1334,17 @@ async def openpose_editor_version(request):
 # ── UI output ────────────────────────────────────────────────────────────────
 
 class _OpenPoseStudioUI(_UIOutput):
-    def __init__(self, pose_json: str):
+    def __init__(self, pose_json: str, background_image_uuid: str = "", background_image_size: str = ""):
         super().__init__()
         self.pose_json = pose_json
+        self.background_image_uuid = background_image_uuid
+        self.background_image_size = background_image_size
 
     def as_dict(self) -> dict:
         return {
             "pose_json": [self.pose_json],
+            "background_image_uuid": [self.background_image_uuid],
+            "background_image_size": [self.background_image_size],
         }
 
 
@@ -1328,6 +1397,11 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
                     optional=True,
                     tooltip="Optional conditioning areas overlay (used by the editor canvas).",
                 ),
+                io.Image.Input(
+                    "background_image",
+                    optional=True,
+                    tooltip="Optional image used as the editor canvas background. The canvas resizes to match its dimensions.",
+                ),
             ],
             outputs=[
                 io.Image.Output(
@@ -1369,6 +1443,13 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
             except Exception:
                 pass
 
+        # Optional editor background image: cache it and hand its UUID to the
+        # frontend so it can fetch the PNG via REST (not in the event payload).
+        background_image_uuid, background_image_size = cache_background_image(
+            kwargs.get("background_image")
+        )
+        ui = lambda pj: _OpenPoseStudioUI(pj, background_image_uuid, background_image_size)
+
         if not pose_json or pose_json.strip() == "":
             # Return empty black image and empty pose if no pose
             empty = np.zeros((512, 512, 3), dtype=np.float32)
@@ -1381,7 +1462,7 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
                 torch.from_numpy(empty).unsqueeze(0),
                 "",
                 empty_pose,
-                ui=_OpenPoseStudioUI(""),
+                ui=ui(""),
             )
 
         filtered_pose_json = _apply_export_filter(
@@ -1405,7 +1486,7 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
                 torch.from_numpy(empty).unsqueeze(0),
                 filtered_pose_json,
                 empty_pose,
-                ui=_OpenPoseStudioUI(pose_json),
+                ui=ui(pose_json),
             )
 
         try:
@@ -1429,7 +1510,7 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
                 tensor,
                 filtered_pose_json,
                 pose_keypoint,
-                ui=_OpenPoseStudioUI(pose_json),
+                ui=ui(pose_json),
             )
         except Exception as e:
             print(f"[OpenPose Studio Min] Error rendering pose: {e}")
@@ -1443,7 +1524,7 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
                 torch.from_numpy(empty).unsqueeze(0),
                 filtered_pose_json,
                 empty_pose,
-                ui=_OpenPoseStudioUI(pose_json),
+                ui=ui(pose_json),
             )
 
 

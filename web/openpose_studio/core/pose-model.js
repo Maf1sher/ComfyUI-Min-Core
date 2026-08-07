@@ -477,4 +477,33 @@ export class PoseModel {
 		);
 		this.clearDeletedKeypoints();
 	}
+
+	/**
+	 * Scale all keypoint coordinates proportionally to a new canvas size.
+	 * Body, face, and hand keypoints are all scaled in place.
+	 * @param {number} newWidth - Target logical width
+	 * @param {number} newHeight - Target logical height
+	 */
+	scaleKeypoints(newWidth, newHeight) {
+		const scaleX = newWidth / this.logicalWidth;
+		const scaleY = newHeight / this.logicalHeight;
+		for (const pose of this.poses) {
+			this._scaleKeypointArray(pose.keypoints, scaleX, scaleY);
+			this._scaleKeypointArray(pose.faceKeypoints, scaleX, scaleY);
+			this._scaleKeypointArray(pose.handLeftKeypoints, scaleX, scaleY);
+			this._scaleKeypointArray(pose.handRightKeypoints, scaleX, scaleY);
+		}
+	}
+
+	_scaleKeypointArray(keypoints, scaleX, scaleY) {
+		if (!Array.isArray(keypoints)) {
+			return;
+		}
+		for (const kp of keypoints) {
+			if (kp && typeof kp.x === "number" && typeof kp.y === "number") {
+				kp.x = Math.round(kp.x * scaleX);
+				kp.y = Math.round(kp.y * scaleY);
+			}
+		}
+	}
 }

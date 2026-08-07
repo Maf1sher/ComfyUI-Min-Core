@@ -436,6 +436,10 @@ class OpenPosePanel {
 			this._initializing = false;
         this.node = node;
         this._initializing = true;  // Prevent saveToNode during init
+        // Ephemeral node-input background state (from the executed event).
+        this._nodeBgUuid = node._mincoreBgUuid || "";
+        this._nodeBgSize = node._mincoreBgSize || "";
+        this._nodeBgImage = null;
 
         // Save original pose for cancel functionality - both as string and deep-cloned JSON
         this.originalPose = node.properties.savedPose || "";
@@ -998,6 +1002,11 @@ class OpenPosePanel {
         this.recordHistory();
         this.updateRemoveState();
 
+        // Apply optional node-input background (async — fetches PNG from REST).
+        if (this._nodeBgUuid) {
+            this.updateNodeInputBackground(this._nodeBgUuid, this._nodeBgSize);
+        }
+
 		const keyHandler = this.onKeyDown.bind(this);
 
 		document.addEventListener("keydown", keyHandler)
@@ -1006,6 +1015,7 @@ class OpenPosePanel {
 		this.confirmed = false;
 
 		this.panel.onClose = () => {
+			this._disposed = true;
 			document.removeEventListener("keydown", keyHandler)
 			this.renderer?.cancelHandEditMode?.();
 			this.stopPanelDrag();
@@ -2238,9 +2248,24 @@ app.registerExtension({
             const nodeId = detail.display_node || detail.node;
             const node = app.graph.getNodeById(nodeId);
             if (!node || node.comfyClass !== "MinCore_OpenPoseStudio") return;
-            const poseJson = detail.output?.pose_json?.[0];
-            if (typeof poseJson !== "string" || poseJson.trim().length === 0) return;
             if (!node.properties) node.properties = {};
+
+            // Optional editor background image (fetched from the REST cache).
+            // Stored as ephemeral runtime fields (not serialized to workflows —
+            // the cache token only lives for the current execution).
+            const bgUuid = detail.output?.background_image_uuid?.[0];
+            const bgSize = detail.output?.background_image_size?.[0];
+            node._mincoreBgUuid = typeof bgUuid === "string" ? bgUuid : "";
+            node._mincoreBgSize = typeof bgSize === "string" ? bgSize : "";
+
+            const poseJson = detail.output?.pose_json?.[0];
+            if (typeof poseJson !== "string" || poseJson.trim().length === 0) {
+                // No pose payload, but background may still need updating.
+                if (node.openPosePanel && typeof node.openPosePanel.updateNodeInputBackground === "function") {
+                    node.openPosePanel.updateNodeInputBackground(node._mincoreBgUuid, node._mincoreBgSize);
+                }
+                return;
+            }
             node.properties.savedPose = poseJson;
             if (node.jsonWidget) node.jsonWidget.value = poseJson;
             if (typeof node.updatePreview === "function") node.updatePreview();
@@ -2252,6 +2277,9 @@ app.registerExtension({
                 } catch (_e) {
                     // ignore
                 }
+            }
+            if (node.openPosePanel && typeof node.openPosePanel.updateNodeInputBackground === "function") {
+                node.openPosePanel.updateNodeInputBackground(node._mincoreBgUuid, node._mincoreBgSize);
             }
         });
     },
@@ -2285,6 +2313,10 @@ app.registerExtension({
                     this.properties = {};
                     this.properties.savedPose = "";
                 }
+
+                // Ephemeral editor background state (set on execution, not serialized).
+                this._mincoreBgUuid = "";
+                this._mincoreBgSize = "";
 
                 this.serialize_widgets = true;
 

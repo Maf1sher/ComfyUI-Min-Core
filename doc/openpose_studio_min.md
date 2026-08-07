@@ -21,7 +21,10 @@ gallery, merger, render style, localization) and converts the edited pose into:
 
 1. **Editor:** Right-click the node → *Open in Editor* (or click the preview
    widget) to open the full pose editor panel. Drag keypoints, load bundled
-   presets, import JSON files, and adjust the canvas size.
+   presets, import JSON files, and adjust the canvas size. Right-click a
+   keypoint to delete it instantly (equivalent to dragging it into the trash
+   target in the top-right corner); the browser context menu is suppressed only
+   when a keypoint is hit.
 2. **Rendering:** On execution, the `pose_json` widget value is parsed and drawn
    onto a black canvas using the runtime render style (configurable in the
    editor's Render Style tab and synced to the backend via REST).
@@ -43,6 +46,11 @@ gallery, merger, render style, localization) and converts the edited pose into:
   widget value.
 - **areas** (CONDITIONING_AREAS, optional) — Conditioning area data shown as an
   overlay in the editor canvas (used with Conditioning Pipeline nodes).
+- **background_image** (IMAGE, optional) — When connected, the image is shown as
+  the background of the editor canvas (like the local file-picker background).
+  The canvas automatically resizes to the image dimensions and existing
+  keypoints are scaled proportionally. The image is only used as an editor
+  reference; it is not composited into the IMAGE output.
 
 ### Outputs
 

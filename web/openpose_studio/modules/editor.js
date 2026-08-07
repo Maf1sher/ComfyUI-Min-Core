@@ -2544,6 +2544,11 @@ ${tabsSectionHtml}
 	},
 
 	restoreSessionBackground() {
+		// When a node-input background is active it takes priority over the
+		// locally persisted (file-picker) background.
+		if (this._nodeBgUuid) {
+			return;
+		}
 		const session = this.getSessionBackground();
 		if (!session || !session.dataUrl) {
 			return;
@@ -2664,6 +2669,9 @@ ${tabsSectionHtml}
 
 	clearBackground() {
 		this.backgroundImage = null;
+		this._nodeBgUuid = "";
+		this._nodeBgSize = "";
+		this._nodeBgImage = null;
 		this.setBackgroundControlsEnabled(false);
 		removePersistedSetting(POSE_BG_DATA_URL_KEY);
 		removePersistedSetting(POSE_BG_MODE_KEY);
@@ -2672,7 +2680,70 @@ ${tabsSectionHtml}
 		if (this.renderer) {
 			this.renderer.setBackground(null, DEFAULT_BG_MODE, DEFAULT_BG_OPACITY);
 		}
-	}
+	},
+
+	/**
+	 * Apply the optional background image coming from the node's
+	 * background_image input (fetched from the backend REST cache).
+	 * Called after execution and when the editor panel opens.
+	 * @param {string} uuid - Cache token from the executed event ("" when none).
+	 * @param {string} size - "WxH" hint from the backend (may be empty).
+	 */
+	updateNodeInputBackground(uuid = "", size = "") {
+		if (this._nodeBgImage && this._nodeBgUuid === uuid) {
+			// Already loaded for this uuid.
+			return;
+		}
+		this._nodeBgUuid = uuid || "";
+		this._nodeBgSize = size || "";
+
+		if (!uuid) {
+			// Node input disconnected / not provided — drop node-input background.
+			if (this._nodeBgImage) {
+				if (this.backgroundImage === this._nodeBgImage) {
+					this.backgroundImage = null;
+					this.renderer?.setBackground(null, DEFAULT_BG_MODE, DEFAULT_BG_OPACITY);
+				}
+				this._nodeBgImage = null;
+			}
+			// Fall back to the locally persisted (file-picker) background.
+			this.restoreSessionBackground();
+			return;
+		}
+
+		this.loadNodeInputBackground(uuid);
+	},
+
+	loadNodeInputBackground(uuid) {
+		const img = new Image();
+		img.onload = () => {
+			if (this._nodeBgUuid !== uuid || this._disposed) {
+				return;
+			}
+			const currentW = this.renderer?.logicalWidth;
+			const currentH = this.renderer?.logicalHeight;
+			if (currentW && currentH && (img.width !== currentW || img.height !== currentH)) {
+				// Scale existing keypoints proportionally and resize the canvas
+				// to match the background image dimensions.
+				this.renderer.model.scaleKeypoints(img.width, img.height);
+				this.resizeCanvas(img.width, img.height);
+				this.recordHistory?.();
+			}
+			this.backgroundImage = img;
+			this._nodeBgImage = img;
+			this.setBackgroundControlsEnabled(true);
+			this.applyBackground();
+			this.scheduleCanvasFit?.();
+		};
+		img.onerror = () => {
+			if (this._nodeBgUuid === uuid) {
+				this._nodeBgUuid = "";
+				this._nodeBgImage = null;
+				this.backgroundImage = null;
+			}
+		};
+		img.src = `/mincore/openpose/background_image/${encodeURIComponent(uuid)}`;
+	},
 };
 
 export const poseEditorPresetWorkflow = {
