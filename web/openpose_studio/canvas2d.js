@@ -4,8 +4,12 @@
  */
 
 
-import { getSkeletonEdges, getSkeletonEdgeColors, isValidKeypoint, PREVIEW_OUTLINE_STROKE, PREVIEW_OUTLINE_FILL } from "./utils.js";
-import { COCO_KEYPOINTS, getFormat, detectFormat, detectFormatFromMetadata, DEFAULT_FORMAT_ID, isFormatEditAllowed } from "./formats/index.js";
+import { PREVIEW_OUTLINE_STROKE, PREVIEW_OUTLINE_FILL } from "./utils.js";
+import { getFormat, DEFAULT_FORMAT_ID, isFormatEditAllowed } from "./formats/index.js";
+import { PoseModel, KEYPOINT_TYPES } from "./core/pose-model.js";
+import { HitTester } from "./core/hit-test.js";
+import { Viewport } from "./core/viewport.js";
+import { InteractionManager, registerDefaultModes } from "./core/interaction.js";
 
 const HAND_EDGES = [
 	[0, 1], [1, 2], [2, 3], [3, 4],
@@ -23,8 +27,6 @@ const HAND_KEYPOINT_COLORS = [
 	[0, 50, 100], [0, 75, 150], [0, 100, 200], [0, 125, 255],
 	[100, 0, 100], [150, 0, 150], [200, 0, 200], [255, 0, 255]
 ];
-
-const EXTRA_KEYPOINT_EPSILON = 0.5;
 
 // Palette for conditioning area overlays.  Colors are distinct and legible on
 // both dark and light backgrounds, and chosen to avoid clashing with the red/
@@ -92,8 +94,25 @@ export class OpenPoseCanvas2D {
 		this.logicalWidth = options.logicalWidth || 768;
 		this.logicalHeight = options.logicalHeight || 512;
 		
+		// Core subsystems (see core/ARCHITECTURE.md)
+		this.model = new PoseModel({
+			logicalWidth: this.logicalWidth,
+			logicalHeight: this.logicalHeight
+		});
+		this.hitTester = new HitTester({
+			keypointHitRadius: options.keypointHitRadius || 10,
+			handHitRadius: options.handEditHitRadius || 14,
+			lineHitRadius: options.lineHitRadius
+		});
+		this.viewport = new Viewport({
+			logicalWidth: this.logicalWidth,
+			logicalHeight: this.logicalHeight
+		});
+		this.interaction = new InteractionManager(this);
+		registerDefaultModes(this.interaction);
+		
 		// State
-		this.poses = []; // Array of {keypoints: Array(18) of {x,y} or null}
+		this.poses = this.model.poses; // Delegated to PoseModel (see poses getter/setter)
 		this.selectedPoseIndex = null;
 		this.hoveredKeypointId = null;
 		this.sidebarHoveredKeypointId = null; // Track sidebar hover separately (takes priority)
@@ -214,7 +233,17 @@ export class OpenPoseCanvas2D {
 		// Initial render
 		this.requestRedraw();
 	}
-	
+
+	/** Delegated to PoseModel (single source of truth for pose data). */
+	get poses() {
+		return this.model.poses;
+	}
+
+	/** @param {Array} value */
+	set poses(value) {
+		this.model.poses = value;
+	}
+
 	       initializeCanvasSize() {
 		       debugLog('[OpenPoseCanvas2D] initializeCanvasSize called');
 		
@@ -250,10 +279,10 @@ export class OpenPoseCanvas2D {
 	}
 
 	getViewportDimensions() {
-		const size = this.handEditMode?.viewportSize;
-		return size
-			? { width: size, height: size }
-			: { width: this.logicalWidth, height: this.logicalHeight };
+		return {
+			width: this.viewport.getViewportWidth(),
+			height: this.viewport.getViewportHeight()
+		};
 	}
 
 	updateCanvasBackingStore() {
@@ -268,8 +297,13 @@ export class OpenPoseCanvas2D {
 	setSize(logicalWidth, logicalHeight, cssWidth, cssHeight) {
 		this.logicalWidth = logicalWidth;
 		this.logicalHeight = logicalHeight;
+		this.viewport.logicalWidth = logicalWidth;
+		this.viewport.logicalHeight = logicalHeight;
+		this.model.logicalWidth = logicalWidth;
+		this.model.logicalHeight = logicalHeight;
 		if (this.handEditMode) {
 			this.handEditMode.viewportSize = Math.max(logicalWidth, logicalHeight);
+			this.viewport.setViewportSize(this.handEditMode.viewportSize);
 		}
 		this.updateCanvasBackingStore();
 		this.canvas.style.width = cssWidth + 'px';
@@ -773,6 +807,7 @@ export class OpenPoseCanvas2D {
 			viewportSize: Math.max(this.logicalWidth, this.logicalHeight),
 			view: null
 		};
+		this.viewport.setViewportSize(this.handEditMode.viewportSize);
 		this.activeDragMode = 'none';
 		this.updateCanvasBackingStore();
 		this.updateHandEditView();
@@ -816,6 +851,8 @@ export class OpenPoseCanvas2D {
 			this.canvas.releasePointerCapture(pointerId);
 		}
 		this.handEditMode = null;
+		this.viewport.setViewportSize(null);
+		this.viewport.setView(null);
 		this.updateCanvasBackingStore();
 		this.activeDragMode = 'none';
 		this.activeKeypointId = null;
@@ -836,6 +873,7 @@ export class OpenPoseCanvas2D {
 		const validPoints = mode.keypoints.filter((kp) => kp && Number.isFinite(kp.x) && Number.isFinite(kp.y));
 		if (validPoints.length === 0) {
 			mode.view = null;
+			this.viewport.setView(null);
 			return;
 		}
 		let minX = Math.min(...validPoints.map((kp) => kp.x));
@@ -867,28 +905,15 @@ export class OpenPoseCanvas2D {
 			offsetX: viewport.width / 2 - centerX * scale,
 			offsetY: margin + availableHeight / 2 - centerY * scale
 		};
+		this.viewport.setView(mode.view);
 	}
 
 	worldToHandView(point) {
-		const view = this.handEditMode?.view;
-		if (!point || !view) {
-			return null;
-		}
-		return {
-			x: point.x * view.scale + view.offsetX,
-			y: point.y * view.scale + view.offsetY
-		};
+		return this.viewport.worldToView(point);
 	}
 
 	handViewToWorld(point) {
-		const view = this.handEditMode?.view;
-		if (!point || !view) {
-			return null;
-		}
-		return {
-			x: (point.x - view.offsetX) / view.scale,
-			y: (point.y - view.offsetY) / view.scale
-		};
+		return this.viewport.viewToWorld(point);
 	}
 
 	updateHandEditControls() {
@@ -912,16 +937,7 @@ export class OpenPoseCanvas2D {
 	}
 	
 	setPoses(posesArray) {
-		this.poses = posesArray.map(pose => {
-			const kps = pose.keypoints || pose;
-			return {
-				keypoints: kps,
-				formatId: pose.formatId || detectFormat(kps),
-				faceKeypoints: this.normalizeExtraKeypoints(pose.faceKeypoints || pose.face_keypoints_2d),
-				handLeftKeypoints: this.normalizeExtraKeypoints(pose.handLeftKeypoints || pose.hand_left_keypoints_2d),
-				handRightKeypoints: this.normalizeExtraKeypoints(pose.handRightKeypoints || pose.hand_right_keypoints_2d)
-			};
-		});
+		this.model.setPoses(posesArray);
 		this.selectedHand = null;
 		this.hoveredHand = null;
 		this.sidebarHoveredHand = null;
@@ -930,26 +946,16 @@ export class OpenPoseCanvas2D {
 	}
 	
 	getPoses() {
-		return this.poses.map(pose => ({
-			keypoints: pose.keypoints,
-			formatId: pose.formatId,
-			faceKeypoints: pose.faceKeypoints,
-			handLeftKeypoints: pose.handLeftKeypoints,
-			handRightKeypoints: pose.handRightKeypoints
-		}));
+		return this.model.getPoses();
 	}
 	
 	       addPose(keypoints18, faceKeypoints = null, handLeftKeypoints = null, handRightKeypoints = null, formatId = null) {
-		       // Use caller-supplied formatId when available so that per-file format detected
-		       // at import time is preserved across all persons in the same file, preventing
-		       // a sparse person (null neck) from being mis-detected as COCO-17.
-		       const resolvedFormatId = formatId !== null ? formatId : detectFormat(keypoints18);
-		       this.poses.push({ keypoints: keypoints18, formatId: resolvedFormatId, faceKeypoints, handLeftKeypoints, handRightKeypoints });
-		       this.selectedPoseIndex = this.poses.length - 1;
+		       const poseIndex = this.model.addPose(keypoints18, faceKeypoints, handLeftKeypoints, handRightKeypoints, formatId);
+		       this.selectedPoseIndex = poseIndex;
 		       this.selectedHand = null;
 		       this.sidebarHoveredHand = null;
 		       debugLog('[OpenPoseCanvas2D] addPose:', {
-			       poseIndex: this.selectedPoseIndex,
+			       poseIndex,
 			       keypointsCount: keypoints18.length,
 			       firstKeypoint: keypoints18[0],
 			       totalPoses: this.poses.length
@@ -964,65 +970,16 @@ export class OpenPoseCanvas2D {
 	 * @param {Array} xyPairs - 18-element array of [x,y] pairs
 	 */
 	addPoseFromArray(xyPairs, faceKeypoints = null, handLeftKeypoints = null, handRightKeypoints = null, formatId = null) {
-		const converted = [];
-		for (let i = 0; i < xyPairs.length; i++) {
-			const point = xyPairs[i];
-			if (isValidKeypoint(point)) {
-				const x = Number(point[0]);
-				const y = Number(point[1]);
-				if (Number.isFinite(x) && Number.isFinite(y) &&
-					x >= 0 && y >= 0 &&
-					x <= this.logicalWidth && y <= this.logicalHeight) {
-					converted.push({ x, y });
-				} else {
-					converted.push(null);
-				}
-			} else {
-				converted.push(null);
-			}
-		}
-		const convertedFaceKeypoints = this.normalizeExtraKeypoints(faceKeypoints);
-		const convertedHandLeftKeypoints = this.normalizeExtraKeypoints(handLeftKeypoints);
-		const convertedHandRightKeypoints = this.normalizeExtraKeypoints(handRightKeypoints);
-		this.addPose(converted, convertedFaceKeypoints, convertedHandLeftKeypoints, convertedHandRightKeypoints, formatId);
+		const poseIndex = this.model.addPoseFromArray(xyPairs, faceKeypoints, handLeftKeypoints, handRightKeypoints, formatId);
+		this.selectedPoseIndex = poseIndex;
+		this.selectedHand = null;
+		this.sidebarHoveredHand = null;
+		this.requestRedraw();
+		this.notifyChange('add');
 	}
 
 	normalizeExtraKeypoints(points) {
-		if (!Array.isArray(points)) {
-			return null;
-		}
-		const converted = [];
-		for (let i = 0; i < points.length; i++) {
-			const point = points[i];
-			let x;
-			let y;
-			if (point && typeof point === "object" && !Array.isArray(point)) {
-				x = Number(point.x);
-				y = Number(point.y);
-				if (Math.abs(x) <= EXTRA_KEYPOINT_EPSILON && Math.abs(y) <= EXTRA_KEYPOINT_EPSILON) {
-					converted.push(null);
-					continue;
-				}
-			} else if (isValidKeypoint(point)) {
-				x = Number(point[0]);
-				y = Number(point[1]);
-			} else {
-				converted.push(null);
-				continue;
-			}
-			if (Math.abs(x) <= EXTRA_KEYPOINT_EPSILON && Math.abs(y) <= EXTRA_KEYPOINT_EPSILON) {
-				converted.push(null);
-				continue;
-			}
-			if (Number.isFinite(x) && Number.isFinite(y) &&
-				x >= 0 && y >= 0 &&
-				x <= this.logicalWidth && y <= this.logicalHeight) {
-				converted.push({ x, y });
-			} else {
-				converted.push(null);
-			}
-		}
-		return converted;
+		return this.model.normalizeExtraKeypoints(points);
 	}
 
 	/**
@@ -1032,31 +989,20 @@ export class OpenPoseCanvas2D {
 	 * @param {string} formatId - Optional format ID (defaults to activeFormatId)
 	 */
 	loadFromFlatArray(flatXYPairs, formatId = null) {
-		const format = getFormat(formatId || this.activeFormatId);
-		const kpCount = format && format.keypoints ? format.keypoints.length : 18;
-		
-		this.poses = [];
-		this.selectedPoseIndex = null;
+		this.model.loadFromFlatArray(flatXYPairs, formatId);
+		this.selectedPoseIndex = this.poses.length > 0 ? this.poses.length - 1 : null;
 		this.selectedHand = null;
 		this.hoveredHand = null;
 		this.sidebarHoveredHand = null;
 		this.keypointEdits = false;
-		const resolvedFormatId = (format && format.id) ? format.id : null;
-		for (let i = 0; i < flatXYPairs.length; i += kpCount) {
-			const chunk = flatXYPairs.slice(i, i + kpCount);
-			if (chunk.length >= kpCount) {
-				this.addPoseFromArray(chunk, null, null, null, resolvedFormatId);
-			}
-		}
 		this.requestRedraw();
 	}
 
 	removePose(index) {
-		if (index >= 0 && index < this.poses.length) {
+		if (this.model.removePose(index)) {
 			this.selectedHand = null;
 			this.hoveredHand = null;
 			this.sidebarHoveredHand = null;
-			this.poses.splice(index, 1);
 			if (this.selectedPoseIndex === index) {
 				this.selectedPoseIndex = this.poses.length > 0 ? Math.min(index, this.poses.length - 1) : null;
 				this.selectedKeypointIds = new Set();
@@ -1321,50 +1267,17 @@ export class OpenPoseCanvas2D {
 	}
 
 	clearFaceKeypoints(poseIndex) {
-		if (poseIndex == null || poseIndex < 0 || poseIndex >= this.poses.length) {
+		if (!this.model.clearFaceKeypoints(poseIndex)) {
 			return false;
 		}
-		const pose = this.poses[poseIndex];
-		const hasFaceArray = Array.isArray(pose.faceKeypoints);
-		const faceLength = hasFaceArray ? pose.faceKeypoints.length : 0;
-		if (!hasFaceArray || faceLength === 0) {
-			pose.faceKeypoints = [];
-			return false;
-		}
-		pose.faceKeypoints = new Array(faceLength).fill(null);
 		this.requestRedraw();
 		this.notifyChange('extras');
 		return true;
 	}
 
 	clearHandKeypoints(poseIndex) {
-		if (poseIndex == null || poseIndex < 0 || poseIndex >= this.poses.length) {
-			return false;
-		}
-		const pose = this.poses[poseIndex];
-		const hasHandLeftArray = Array.isArray(pose.handLeftKeypoints);
-		const hasHandRightArray = Array.isArray(pose.handRightKeypoints);
-		const handLeftLength = hasHandLeftArray ? pose.handLeftKeypoints.length : 0;
-		const handRightLength = hasHandRightArray ? pose.handRightKeypoints.length : 0;
-		if (handLeftLength === 0 && handRightLength === 0) {
-			if (!hasHandLeftArray) {
-				pose.handLeftKeypoints = [];
-			}
-			if (!hasHandRightArray) {
-				pose.handRightKeypoints = [];
-			}
-			return false;
-		}
-		if (hasHandLeftArray) {
-			pose.handLeftKeypoints = new Array(handLeftLength).fill(null);
-		} else {
-			pose.handLeftKeypoints = [];
-		}
-		if (hasHandRightArray) {
-			pose.handRightKeypoints = new Array(handRightLength).fill(null);
-		} else {
-			pose.handRightKeypoints = [];
-		}
+		const leftCleared = this.model.clearHandLeftKeypoints(poseIndex);
+		const rightCleared = this.model.clearHandRightKeypoints(poseIndex);
 		if (this.selectedHand?.poseIndex === poseIndex) {
 			this.selectedHand = null;
 			this.hoveredHand = null;
@@ -1372,25 +1285,18 @@ export class OpenPoseCanvas2D {
 		if (this.sidebarHoveredHand?.poseIndex === poseIndex) {
 			this.sidebarHoveredHand = null;
 		}
+		if (!leftCleared && !rightCleared) {
+			return false;
+		}
 		this.requestRedraw();
 		this.notifyChange('extras');
 		return true;
 	}
 
 	clearHandLeftKeypoints(poseIndex) {
-		if (poseIndex == null || poseIndex < 0 || poseIndex >= this.poses.length) {
+		if (!this.model.clearHandLeftKeypoints(poseIndex)) {
 			return false;
 		}
-		const pose = this.poses[poseIndex];
-		const hasArray = Array.isArray(pose.handLeftKeypoints);
-		const len = hasArray ? pose.handLeftKeypoints.length : 0;
-		if (len === 0) {
-			if (!hasArray) {
-				pose.handLeftKeypoints = [];
-			}
-			return false;
-		}
-		pose.handLeftKeypoints = new Array(len).fill(null);
 		if (this.selectedHand?.poseIndex === poseIndex && this.selectedHand.side === 'left') {
 			this.selectedHand = null;
 			this.hoveredHand = null;
@@ -1404,19 +1310,9 @@ export class OpenPoseCanvas2D {
 	}
 
 	clearHandRightKeypoints(poseIndex) {
-		if (poseIndex == null || poseIndex < 0 || poseIndex >= this.poses.length) {
+		if (!this.model.clearHandRightKeypoints(poseIndex)) {
 			return false;
 		}
-		const pose = this.poses[poseIndex];
-		const hasArray = Array.isArray(pose.handRightKeypoints);
-		const len = hasArray ? pose.handRightKeypoints.length : 0;
-		if (len === 0) {
-			if (!hasArray) {
-				pose.handRightKeypoints = [];
-			}
-			return false;
-		}
-		pose.handRightKeypoints = new Array(len).fill(null);
 		if (this.selectedHand?.poseIndex === poseIndex && this.selectedHand.side === 'right') {
 			this.selectedHand = null;
 			this.hoveredHand = null;
@@ -1430,20 +1326,9 @@ export class OpenPoseCanvas2D {
 	}
 
 	clearKeypoint(poseIndex, keypointId) {
-		if (poseIndex == null || poseIndex < 0 || poseIndex >= this.poses.length) {
+		if (!this.model.clearKeypoint(KEYPOINT_TYPES.BODY, poseIndex, keypointId)) {
 			return false;
 		}
-		const pose = this.poses[poseIndex];
-		if (!pose || !Array.isArray(pose.keypoints)) {
-			return false;
-		}
-		if (keypointId == null || keypointId < 0 || keypointId >= pose.keypoints.length) {
-			return false;
-		}
-		if (!pose.keypoints[keypointId]) {
-			return false;
-		}
-		pose.keypoints[keypointId] = null;
 		this.markKeypointEdited();
 		this.requestRedraw();
 		this.notifyChange('geometry');
@@ -1457,24 +1342,9 @@ export class OpenPoseCanvas2D {
 	 * both endpoints are now present, without any extra work needed here.
 	 */
 	placeKeypoint(poseIndex, keypointId, x, y) {
-		if (poseIndex == null || poseIndex < 0 || poseIndex >= this.poses.length) {
+		if (!this.model.placeKeypoint(KEYPOINT_TYPES.BODY, poseIndex, keypointId, x, y)) {
 			return false;
 		}
-		const pose = this.poses[poseIndex];
-		if (!pose || !Array.isArray(pose.keypoints)) {
-			return false;
-		}
-		if (keypointId == null || keypointId < 0 || keypointId >= pose.keypoints.length) {
-			return false;
-		}
-		if (pose.keypoints[keypointId]) {
-			// Slot is already occupied — refuse to overwrite
-			return false;
-		}
-		pose.keypoints[keypointId] = {
-			x: Math.max(0, Math.min(this.logicalWidth, x)),
-			y: Math.max(0, Math.min(this.logicalHeight, y))
-		};
 		this.markKeypointEdited();
 		this.requestRedraw();
 		this.notifyChange('geometry');
@@ -1494,97 +1364,14 @@ export class OpenPoseCanvas2D {
 	}
 	
 	serialize(options = {}) {
-		const includeExtras = !!options.includeExtras;
-		const includeFace = includeExtras || !!options.includeFace;
-		const includeHands = includeExtras || !!options.includeHands;
-		const payload = {
-			width: this.logicalWidth,
-			format: this.activeFormatId,
-			height: this.logicalHeight,
-			keypoints: this.poses.map(pose => 
-				pose.keypoints.map(kp => kp ? [kp.x, kp.y] : null)
-			)
-		};
-		const hasFace = this.poses.some((pose) =>
-			Array.isArray(pose.faceKeypoints) && pose.faceKeypoints.length > 0
-		);
-		const hasHandLeft = this.poses.some((pose) =>
-			Array.isArray(pose.handLeftKeypoints) && pose.handLeftKeypoints.length > 0
-		);
-		const hasHandRight = this.poses.some((pose) =>
-			Array.isArray(pose.handRightKeypoints) && pose.handRightKeypoints.length > 0
-		);
-		if (includeFace && hasFace) {
-			payload.face_keypoints_2d = this.poses.map((pose) => (
-				Array.isArray(pose.faceKeypoints)
-					? pose.faceKeypoints.map(kp => kp ? [kp.x, kp.y] : null)
-					: null
-			));
-		}
-		if (includeHands && hasHandLeft) {
-			payload.hand_left_keypoints_2d = this.poses.map((pose) => (
-				Array.isArray(pose.handLeftKeypoints)
-					? pose.handLeftKeypoints.map(kp => kp ? [kp.x, kp.y] : null)
-					: null
-			));
-		}
-		if (includeHands && hasHandRight) {
-			payload.hand_right_keypoints_2d = this.poses.map((pose) => (
-				Array.isArray(pose.handRightKeypoints)
-					? pose.handRightKeypoints.map(kp => kp ? [kp.x, kp.y] : null)
-					: null
-			));
-		}
-		return payload;
+		return this.model.serialize(options);
 	}
 	
 	load(serializedObject) {
-		this.logicalWidth = serializedObject.width || 768;
-		this.logicalHeight = serializedObject.height || 512;
-		
-		// Restore format metadata (prefer explicit, fall back to detection)
-		const poseKeypoints = serializedObject.keypoints || [];
-		const flatKeypoints = poseKeypoints.length > 0 && Array.isArray(poseKeypoints[0]) 
-			? poseKeypoints.flat() 
-			: poseKeypoints;
-		this.activeFormatId = detectFormatFromMetadata(
-			serializedObject.format,
-			flatKeypoints
-		) || DEFAULT_FORMAT_ID;
-		
-		// Convert from [x,y] format to {x,y} format
-		const faceKeypoints = Array.isArray(serializedObject.face_keypoints_2d)
-			? serializedObject.face_keypoints_2d
-			: Array.isArray(serializedObject.faceKeypoints)
-				? serializedObject.faceKeypoints
-				: null;
-		const handLeftKeypoints = Array.isArray(serializedObject.hand_left_keypoints_2d)
-			? serializedObject.hand_left_keypoints_2d
-			: Array.isArray(serializedObject.handLeftKeypoints)
-				? serializedObject.handLeftKeypoints
-				: null;
-		const handRightKeypoints = Array.isArray(serializedObject.hand_right_keypoints_2d)
-			? serializedObject.hand_right_keypoints_2d
-			: Array.isArray(serializedObject.handRightKeypoints)
-				? serializedObject.handRightKeypoints
-				: null;
-		this.poses = (serializedObject.keypoints || []).map((poseKeypoints, index) =>
-			({
-				keypoints: poseKeypoints.map(kp => 
-					kp && kp.length === 2 ? { x: kp[0], y: kp[1] } : null
-				),
-				formatId: this.activeFormatId,
-				faceKeypoints: this.normalizeExtraKeypoints(
-					faceKeypoints ? faceKeypoints[index] : null
-				),
-				handLeftKeypoints: this.normalizeExtraKeypoints(
-					handLeftKeypoints ? handLeftKeypoints[index] : null
-				),
-				handRightKeypoints: this.normalizeExtraKeypoints(
-					handRightKeypoints ? handRightKeypoints[index] : null
-				)
-			})
-		);
+		this.model.load(serializedObject);
+		this.logicalWidth = this.model.logicalWidth;
+		this.logicalHeight = this.model.logicalHeight;
+		this.activeFormatId = this.model.activeFormatId;
 		this.selectedHand = null;
 		this.hoveredHand = null;
 		this.sidebarHoveredHand = null;
@@ -3025,12 +2812,7 @@ export class OpenPoseCanvas2D {
 	
 	// Event handlers
 	screenToLogical(clientX, clientY) {
-		const rect = this.canvas.getBoundingClientRect();
-		const viewport = this.getViewportDimensions();
-		return {
-			x: (clientX - rect.left) * (viewport.width / rect.width),
-			y: (clientY - rect.top) * (viewport.height / rect.height)
-		};
+		return this.viewport.screenToWorld(clientX, clientY, this.canvas.getBoundingClientRect());
 	}
 
 	findNearestEditableHandKeypoint(pointer) {
@@ -3282,72 +3064,68 @@ export class OpenPoseCanvas2D {
 		if (isShift) {
 			// Shift+Click: toggle keypoint in active pose only
 			if (this.selectedPoseIndex !== null) {
-				const activePose = this.poses[this.selectedPoseIndex];
-				for (let kpId = 0; kpId < activePose.keypoints.length; kpId++) {
-					const kp = activePose.keypoints[kpId];
-					if (kp) {
-						const dist = Math.sqrt((pointer.x - kp.x) ** 2 + (pointer.y - kp.y) ** 2);
-						if (dist <= this.keypointHitRadius) {
-							this.selectedHand = null;
-							if (this.selectedKeypointIds.has(kpId)) {
-								this.selectedKeypointIds.delete(kpId);
-							} else {
-								this.selectedKeypointIds.add(kpId);
-							}
-							this.requestRedraw();
-							return; // Shift+Click never starts a drag
-						}
+				const shiftHit = this.hitTester.findKeypointAtPoint(this.poses, pointer, {
+					types: [KEYPOINT_TYPES.BODY],
+					poseIndex: this.selectedPoseIndex
+				});
+				if (shiftHit) {
+					const kpId = shiftHit.keypointId;
+					this.selectedHand = null;
+					if (this.selectedKeypointIds.has(kpId)) {
+						this.selectedKeypointIds.delete(kpId);
+					} else {
+						this.selectedKeypointIds.add(kpId);
 					}
+					this.requestRedraw();
+					return; // Shift+Click never starts a drag
 				}
 			}
 			// Shift+Click on empty space or inactive pose keypoint — fall through to step 6 for marquee start
 		}
 
 		// Plain click: hit-test all poses (topmost first)
-		for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
+		const plainHit = this.hitTester.findKeypointAtPoint(this.poses, pointer, {
+			types: [KEYPOINT_TYPES.BODY]
+		});
+		if (plainHit) {
+			const poseIdx = plainHit.poseIndex;
+			const kpId = plainHit.keypointId;
 			const pose = this.poses[poseIdx];
-			for (let kpId = 0; kpId < pose.keypoints.length; kpId++) {
-				const kp = pose.keypoints[kpId];
-				if (kp) {
-					const dist = Math.sqrt((pointer.x - kp.x) ** 2 + (pointer.y - kp.y) ** 2);
-					if (dist <= this.keypointHitRadius) {
-						this.selectedHand = null;
-						this.preselectionPoseIndex = null;
-						this.selectionBoxHovered = true;
-						this.hoveredHandle = null;
-						// If this keypoint is part of the active multi-selection, move the whole group
-						if (poseIdx === this.selectedPoseIndex && this.selectedKeypointIds.has(kpId) && this.selectedKeypointIds.size > 0) {
-							// Move all selected keypoints together
-							this.activeDragMode = 'moveSelectedKeypoints';
-							const snapshotMap = new Map();
-							for (const id of this.selectedKeypointIds) {
-								const kpSnap = pose.keypoints[id];
-								if (kpSnap) snapshotMap.set(id, { x: kpSnap.x, y: kpSnap.y });
-							}
-							this.dragStartKeypointMap = snapshotMap;
-							this.captureAttachedHands(pose, this.selectedKeypointIds);
-							this.canvas.setPointerCapture(evt.pointerId);
-							this.updateCursor();
-							return;
-						}
-						// Otherwise: plain single-keypoint drag (clears multi-selection)
-						this.selectedKeypointIds = new Set();
-						this.setSelectedPose(poseIdx);
-						this.activeDragMode = 'dragKeypoint';
-						this.activeKeypointId = kpId;
-						this.dragStartKeypoint = {
-							poseIndex: poseIdx,
-							keypointId: kpId,
-							x: kp.x,
-							y: kp.y
-						};
-						this.captureAttachedHands(pose, [kpId]);
-						this.updateCursor();
-						this.canvas.setPointerCapture(evt.pointerId);
-						return;
-					}
+			const kp = pose.keypoints[kpId];
+			this.selectedHand = null;
+			this.preselectionPoseIndex = null;
+			this.selectionBoxHovered = true;
+			this.hoveredHandle = null;
+			// If this keypoint is part of the active multi-selection, move the whole group
+			if (poseIdx === this.selectedPoseIndex && this.selectedKeypointIds.has(kpId) && this.selectedKeypointIds.size > 0) {
+				// Move all selected keypoints together
+				this.activeDragMode = 'moveSelectedKeypoints';
+				const snapshotMap = new Map();
+				for (const id of this.selectedKeypointIds) {
+					const kpSnap = pose.keypoints[id];
+					if (kpSnap) snapshotMap.set(id, { x: kpSnap.x, y: kpSnap.y });
 				}
+				this.dragStartKeypointMap = snapshotMap;
+				this.captureAttachedHands(pose, this.selectedKeypointIds);
+				this.canvas.setPointerCapture(evt.pointerId);
+				this.updateCursor();
+				return;
 			}
+			// Otherwise: plain single-keypoint drag (clears multi-selection)
+			this.selectedKeypointIds = new Set();
+			this.setSelectedPose(poseIdx);
+			this.activeDragMode = 'dragKeypoint';
+			this.activeKeypointId = kpId;
+			this.dragStartKeypoint = {
+				poseIndex: poseIdx,
+				keypointId: kpId,
+				x: kp.x,
+				y: kp.y
+			};
+			this.captureAttachedHands(pose, [kpId]);
+			this.updateCursor();
+			this.canvas.setPointerCapture(evt.pointerId);
+			return;
 		}
 
 		if (!isShift) {
@@ -3479,23 +3257,13 @@ export class OpenPoseCanvas2D {
 		let hoveredKeypointId = null;
 		let hoveredPoseIndex = null;
 		
-		// Check keypoint hit in reverse order (top to bottom)
-		for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
-			const pose = this.poses[poseIdx];
-			for (let kpId = 0; kpId < pose.keypoints.length; kpId++) {
-				const kp = pose.keypoints[kpId];
-				if (kp) {
-					const dist = Math.sqrt((pointer.x - kp.x) ** 2 + (pointer.y - kp.y) ** 2);
-					if (dist <= this.keypointHitRadius) {
-						hoveredKeypointId = kpId;
-						hoveredPoseIndex = poseIdx;
-						break; // Found a keypoint, stop searching
-					}
-				}
-			}
-			if (hoveredKeypointId !== null) {
-				break; // Found in this pose, stop searching other poses
-			}
+		// Hit-test body keypoints top-down (reverse pose order)
+		const hit = this.hitTester.findKeypointAtPoint(this.poses, pointer, {
+			types: [KEYPOINT_TYPES.BODY]
+		});
+		if (hit) {
+			hoveredKeypointId = hit.keypointId;
+			hoveredPoseIndex = hit.poseIndex;
 		}
 		
 		// Update canvas hover with pose index (sidebar hover takes priority internally)
@@ -3673,507 +3441,25 @@ export class OpenPoseCanvas2D {
 
 		// Return early if not actively dragging (hover detection done)
 		if (this.activeDragMode === 'none') return;
-
-		// ── Marquee drag ──
-		if (this.activeDragMode === 'marquee') {
-			this.marqueeRect.x2 = pointer.x;
-			this.marqueeRect.y2 = pointer.y;
-			// Live-preview: update selectedKeypointIds to match keypoints inside current rect
-			if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length) {
-				const rect = this.marqueeRect;
-				const rxMin = Math.min(rect.x1, rect.x2);
-				const rxMax = Math.max(rect.x1, rect.x2);
-				const ryMin = Math.min(rect.y1, rect.y2);
-				const ryMax = Math.max(rect.y1, rect.y2);
-				const liveSelection = this.marqueeSelectionBase ? new Set(this.marqueeSelectionBase) : new Set();
-				const activePose = this.poses[this.selectedPoseIndex];
-				for (let kpId = 0; kpId < activePose.keypoints.length; kpId++) {
-					const kp = activePose.keypoints[kpId];
-					if (kp && kp.x >= rxMin && kp.x <= rxMax && kp.y >= ryMin && kp.y <= ryMax) {
-						liveSelection.add(kpId);
-					}
-				}
-				this.selectedKeypointIds = liveSelection;
-			}
-			this.requestRedraw();
-			return;
-		}
-		
-		const pose = this.poses[this.selectedPoseIndex];
-
-		if (this.activeDragMode === 'scaleHand') {
-			const handRef = this.selectedHand;
-			if (!pose || !handRef || handRef.poseIndex !== this.selectedPoseIndex || !this.dragStartHandKeypoints ||
-				!this.handTransformPivot || !this.handScaleStartDistance) {
-				return;
-			}
-			const { property } = this.getHandSideConfig(handRef.side);
-			const pivot = this.handTransformPivot;
-			const currentDistance = Math.hypot(pointer.x - pivot.x, pointer.y - pivot.y);
-			let scale = Math.max(0.1, Math.min(10, currentDistance / this.handScaleStartDistance));
-			let maximumCanvasScale = 10;
-			for (const kp of this.dragStartHandKeypoints) {
-				if (!kp) continue;
-				const dx = kp.x - pivot.x;
-				const dy = kp.y - pivot.y;
-				if (dx > 0) maximumCanvasScale = Math.min(maximumCanvasScale, (this.logicalWidth - pivot.x) / dx);
-				else if (dx < 0) maximumCanvasScale = Math.min(maximumCanvasScale, (0 - pivot.x) / dx);
-				if (dy > 0) maximumCanvasScale = Math.min(maximumCanvasScale, (this.logicalHeight - pivot.y) / dy);
-				else if (dy < 0) maximumCanvasScale = Math.min(maximumCanvasScale, (0 - pivot.y) / dy);
-			}
-			scale = Math.min(scale, Math.max(0.1, maximumCanvasScale));
-			pose[property] = this.dragStartHandKeypoints.map((kp, index) => {
-				if (!kp) return null;
-				if (index === 0) return { ...pivot };
-				return {
-					x: pivot.x + (kp.x - pivot.x) * scale,
-					y: pivot.y + (kp.y - pivot.y) * scale
-				};
-			});
-			this.handDragMoved = this.handDragMoved || scale !== 1;
-			this.requestRedraw();
-			return;
-		}
-
-		if (this.activeDragMode === 'rotateHand') {
-			const handRef = this.selectedHand;
-			if (!pose || !handRef || handRef.poseIndex !== this.selectedPoseIndex || !this.dragStartHandKeypoints ||
-				!this.handTransformPivot || this.handRotateStartAngle === null) {
-				return;
-			}
-			const { property } = this.getHandSideConfig(handRef.side);
-			const pivot = this.handTransformPivot;
-			const currentAngle = Math.atan2(pointer.y - pivot.y, pointer.x - pivot.x);
-			const deltaAngle = currentAngle - this.handRotateStartAngle;
-			const cosAngle = Math.cos(deltaAngle);
-			const sinAngle = Math.sin(deltaAngle);
-			pose[property] = this.dragStartHandKeypoints.map((kp, index) => {
-				if (!kp) return null;
-				if (index === 0) return { ...pivot };
-				const dx = kp.x - pivot.x;
-				const dy = kp.y - pivot.y;
-				return {
-					x: pivot.x + dx * cosAngle - dy * sinAngle,
-					y: pivot.y + dx * sinAngle + dy * cosAngle
-				};
-			});
-			this.handDragMoved = this.handDragMoved || deltaAngle !== 0;
-			this.requestRedraw();
-			return;
-		}
-
-		if (this.activeDragMode === 'moveHand') {
-			const handRef = this.selectedHand;
-			if (!pose || !handRef || handRef.poseIndex !== this.selectedPoseIndex || !this.dragStartHandKeypoints) {
-				return;
-			}
-			const { property } = this.getHandSideConfig(handRef.side);
-			const bounds = this.getHandBounds(this.dragStartHandKeypoints);
-			if (!bounds) {
-				return;
-			}
-			let dx = pointer.x - this.dragStartPointer.x;
-			let dy = pointer.y - this.dragStartPointer.y;
-			dx = Math.max(-bounds.minX, Math.min(this.logicalWidth - bounds.maxX, dx));
-			dy = Math.max(-bounds.minY, Math.min(this.logicalHeight - bounds.maxY, dy));
-			this.handDragMoved = this.handDragMoved || dx !== 0 || dy !== 0;
-			pose[property] = this.dragStartHandKeypoints.map((kp) => kp ? { x: kp.x + dx, y: kp.y + dy } : null);
-			this.updateMovedHandFusionTarget(pose, handRef.side);
-			this.requestRedraw();
-			return;
-		}
-		
-		if (this.activeDragMode === 'dragKeypoint') {
-			// Clamp to canvas bounds
-			pose.keypoints[this.activeKeypointId] = {
-				x: Math.max(0, Math.min(this.logicalWidth, pointer.x)),
-				y: Math.max(0, Math.min(this.logicalHeight, pointer.y))
-			};
-			this.updateAttachedHands(pose);
-			this.updateWristFusionTargets(pose);
-			// Update trash target hover state (radial hit-test against quarter-circle)
-			const R = this._getTrashTargetRadius();
-			const wasHovered = this.trashTargetHovered;
-			const dx = this.logicalWidth - pointer.x;
-			const dy = pointer.y;
-			this.trashTargetHovered = (dx * dx + dy * dy <= R * R);
-			if (wasHovered !== this.trashTargetHovered) {
-				this.requestRedraw();
-				return;
-			}
-			this.requestRedraw();
-		}
-		else if (this.activeDragMode === 'moveSelectedKeypoints') {
-			// Delta-move all selected keypoints from their start positions
-			const dx = pointer.x - this.dragStartPointer.x;
-			const dy = pointer.y - this.dragStartPointer.y;
-			for (const [kpId, startPos] of this.dragStartKeypointMap) {
-				pose.keypoints[kpId] = {
-					x: Math.max(0, Math.min(this.logicalWidth, startPos.x + dx)),
-					y: Math.max(0, Math.min(this.logicalHeight, startPos.y + dy))
-				};
-			}
-			this.updateAttachedHands(pose);
-			this.updateWristFusionTargets(pose);
-			this.requestRedraw();
-		}
-		else if (this.activeDragMode === 'scaleSelectedKeypoints') {
-			// Compute bbox from the snapshot positions in dragStartKeypointMap
-			let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-			for (const pos of this.dragStartKeypointMap.values()) {
-				minX = Math.min(minX, pos.x); minY = Math.min(minY, pos.y);
-				maxX = Math.max(maxX, pos.x); maxY = Math.max(maxY, pos.y);
-			}
-			const bbox = { minX, minY, maxX, maxY };
-			const handle = this.activeScaleHandle;
-			let scaleX = 1, scaleY = 1, anchorX, anchorY;
-
-			if (['nw', 'ne', 'sw', 'se'].includes(handle)) {
-				const anchorMap = {
-					nw: { x: bbox.maxX, y: bbox.maxY },
-					ne: { x: bbox.minX, y: bbox.maxY },
-					sw: { x: bbox.maxX, y: bbox.minY },
-					se: { x: bbox.minX, y: bbox.minY }
-				};
-				const anchor = anchorMap[handle];
-				anchorX = anchor.x; anchorY = anchor.y;
-				const handleOriginal = this.getScaleHandles(bbox, 10)[handle];
-				const originalDist = Math.sqrt((handleOriginal.x - anchorX) ** 2 + (handleOriginal.y - anchorY) ** 2);
-				const currentDist = Math.sqrt((pointer.x - anchorX) ** 2 + (pointer.y - anchorY) ** 2);
-				let scale = originalDist > 0 ? currentDist / originalDist : 1;
-				scale = Math.max(0.1, Math.min(10, scale));
-				scaleX = scale; scaleY = scale;
-			} else if (handle === 'e') {
-				anchorX = bbox.minX; anchorY = (bbox.minY + bbox.maxY) / 2;
-				const w = bbox.maxX - bbox.minX;
-				scaleX = w > 0 ? Math.max(0.1, Math.min(10, (pointer.x - anchorX) / w)) : 1; scaleY = 1;
-			} else if (handle === 'w') {
-				anchorX = bbox.maxX; anchorY = (bbox.minY + bbox.maxY) / 2;
-				const w = bbox.maxX - bbox.minX;
-				scaleX = w > 0 ? Math.max(0.1, Math.min(10, (anchorX - pointer.x) / w)) : 1; scaleY = 1;
-			} else if (handle === 's') {
-				anchorX = (bbox.minX + bbox.maxX) / 2; anchorY = bbox.minY;
-				const h = bbox.maxY - bbox.minY;
-				scaleX = 1; scaleY = h > 0 ? Math.max(0.1, Math.min(10, (pointer.y - anchorY) / h)) : 1;
-			} else if (handle === 'n') {
-				anchorX = (bbox.minX + bbox.maxX) / 2; anchorY = bbox.maxY;
-				const h = bbox.maxY - bbox.minY;
-				scaleX = 1; scaleY = h > 0 ? Math.max(0.1, Math.min(10, (anchorY - pointer.y) / h)) : 1;
-			}
-
-			for (const [kpId, startPos] of this.dragStartKeypointMap) {
-				pose.keypoints[kpId] = {
-					x: anchorX + (startPos.x - anchorX) * scaleX,
-					y: anchorY + (startPos.y - anchorY) * scaleY
-				};
-			}
-			this.updateAttachedHands(pose);
-			this.updateWristFusionTargets(pose);
-			this.requestRedraw();
-		}
-		else if (this.activeDragMode === 'movePose') {
-			const dx = pointer.x - this.dragStartPointer.x;
-			const dy = pointer.y - this.dragStartPointer.y;
-			
-			for (let i = 0; i < pose.keypoints.length; i++) {
-				const originalKp = this.dragStartPose.keypoints[i];
-				if (originalKp) {
-					pose.keypoints[i] = {
-						x: Math.max(0, Math.min(this.logicalWidth, originalKp.x + dx)),
-						y: Math.max(0, Math.min(this.logicalHeight, originalKp.y + dy))
-					};
-				}
-			}
-			if (Array.isArray(pose.faceKeypoints) && Array.isArray(this.dragStartPose.faceKeypoints)) {
-				for (let i = 0; i < pose.faceKeypoints.length; i++) {
-					const originalKp = this.dragStartPose.faceKeypoints[i];
-					if (originalKp) {
-						pose.faceKeypoints[i] = {
-							x: Math.max(0, Math.min(this.logicalWidth, originalKp.x + dx)),
-							y: Math.max(0, Math.min(this.logicalHeight, originalKp.y + dy))
-						};
-					}
-				}
-			}
-			if (Array.isArray(pose.handLeftKeypoints) && Array.isArray(this.dragStartPose.handLeftKeypoints)) {
-				for (let i = 0; i < pose.handLeftKeypoints.length; i++) {
-					const originalKp = this.dragStartPose.handLeftKeypoints[i];
-					if (originalKp) {
-						pose.handLeftKeypoints[i] = {
-							x: Math.max(0, Math.min(this.logicalWidth, originalKp.x + dx)),
-							y: Math.max(0, Math.min(this.logicalHeight, originalKp.y + dy))
-						};
-					}
-				}
-			}
-			if (Array.isArray(pose.handRightKeypoints) && Array.isArray(this.dragStartPose.handRightKeypoints)) {
-				for (let i = 0; i < pose.handRightKeypoints.length; i++) {
-					const originalKp = this.dragStartPose.handRightKeypoints[i];
-					if (originalKp) {
-						pose.handRightKeypoints[i] = {
-							x: Math.max(0, Math.min(this.logicalWidth, originalKp.x + dx)),
-							y: Math.max(0, Math.min(this.logicalHeight, originalKp.y + dy))
-						};
-					}
-				}
-			}
-			this.requestRedraw();
-		}
-		else if (this.activeDragMode === 'scalePose') {
-			const bbox = this.getPoseBounds(this.dragStartPose);
-			if (!bbox) return;
-			
-			const handle = this.activeScaleHandle;
-			let scaleX = 1;
-			let scaleY = 1;
-			let anchorX, anchorY;
-			
-			// Determine anchor and scale based on handle type
-			if (['nw', 'ne', 'sw', 'se'].includes(handle)) {
-				// CORNER HANDLES: Uniform scaling
-				const anchorMap = {
-					nw: { x: bbox.maxX, y: bbox.maxY },
-					ne: { x: bbox.minX, y: bbox.maxY },
-					sw: { x: bbox.maxX, y: bbox.minY },
-					se: { x: bbox.minX, y: bbox.minY }
-				};
-				const anchor = anchorMap[handle];
-				anchorX = anchor.x;
-				anchorY = anchor.y;
-				
-				// Calculate uniform scale factor
-				const handleOriginal = this.getScaleHandles(bbox, 10)[handle];
-				const originalDist = Math.sqrt(
-					(handleOriginal.x - anchor.x) ** 2 + (handleOriginal.y - anchor.y) ** 2
-				);
-				const currentDist = Math.sqrt(
-					(pointer.x - anchor.x) ** 2 + (pointer.y - anchor.y) ** 2
-				);
-				
-				let scale = currentDist / originalDist;
-				scale = Math.max(0.1, Math.min(10, scale)); // Clamp
-				scaleX = scale;
-				scaleY = scale;
-			} else if (handle === 'e') {
-				// RIGHT: Scale X only
-				anchorX = bbox.minX;
-				anchorY = (bbox.minY + bbox.maxY) / 2;
-				const originalWidth = bbox.maxX - bbox.minX;
-				const newWidth = pointer.x - anchorX;
-				scaleX = newWidth / originalWidth;
-				scaleX = Math.max(0.1, Math.min(10, scaleX));
-				scaleY = 1;
-			} else if (handle === 'w') {
-				// LEFT: Scale X only
-				anchorX = bbox.maxX;
-				anchorY = (bbox.minY + bbox.maxY) / 2;
-				const originalWidth = bbox.maxX - bbox.minX;
-				const newWidth = anchorX - pointer.x;
-				scaleX = newWidth / originalWidth;
-				scaleX = Math.max(0.1, Math.min(10, scaleX));
-				scaleY = 1;
-			} else if (handle === 's') {
-				// BOTTOM: Scale Y only
-				anchorX = (bbox.minX + bbox.maxX) / 2;
-				anchorY = bbox.minY;
-				const originalHeight = bbox.maxY - bbox.minY;
-				const newHeight = pointer.y - anchorY;
-				scaleY = newHeight / originalHeight;
-				scaleY = Math.max(0.1, Math.min(10, scaleY));
-				scaleX = 1;
-			} else if (handle === 'n') {
-				// TOP: Scale Y only
-				anchorX = (bbox.minX + bbox.maxX) / 2;
-				anchorY = bbox.maxY;
-				const originalHeight = bbox.maxY - bbox.minY;
-				const newHeight = anchorY - pointer.y;
-				scaleY = newHeight / originalHeight;
-				scaleY = Math.max(0.1, Math.min(10, scaleY));
-				scaleX = 1;
-			}
-			
-			// Apply scale
-			for (let i = 0; i < pose.keypoints.length; i++) {
-				const originalKp = this.dragStartPose.keypoints[i];
-				if (originalKp) {
-					pose.keypoints[i] = {
-						x: anchorX + (originalKp.x - anchorX) * scaleX,
-						y: anchorY + (originalKp.y - anchorY) * scaleY
-					};
-				}
-			}
-			if (Array.isArray(pose.faceKeypoints) && Array.isArray(this.dragStartPose.faceKeypoints)) {
-				for (let i = 0; i < pose.faceKeypoints.length; i++) {
-					const originalKp = this.dragStartPose.faceKeypoints[i];
-					if (originalKp) {
-						pose.faceKeypoints[i] = {
-							x: anchorX + (originalKp.x - anchorX) * scaleX,
-							y: anchorY + (originalKp.y - anchorY) * scaleY
-						};
-					}
-				}
-			}
-			if (Array.isArray(pose.handLeftKeypoints) && Array.isArray(this.dragStartPose.handLeftKeypoints)) {
-				for (let i = 0; i < pose.handLeftKeypoints.length; i++) {
-					const originalKp = this.dragStartPose.handLeftKeypoints[i];
-					if (originalKp) {
-						pose.handLeftKeypoints[i] = {
-							x: anchorX + (originalKp.x - anchorX) * scaleX,
-							y: anchorY + (originalKp.y - anchorY) * scaleY
-						};
-					}
-				}
-			}
-			if (Array.isArray(pose.handRightKeypoints) && Array.isArray(this.dragStartPose.handRightKeypoints)) {
-				for (let i = 0; i < pose.handRightKeypoints.length; i++) {
-					const originalKp = this.dragStartPose.handRightKeypoints[i];
-					if (originalKp) {
-						pose.handRightKeypoints[i] = {
-							x: anchorX + (originalKp.x - anchorX) * scaleX,
-							y: anchorY + (originalKp.y - anchorY) * scaleY
-						};
-					}
-				}
-			}
-			this.requestRedraw();
-		}
-		else if (this.activeDragMode === 'rotatePose') {
-			if (!this.rotatePivot || this.rotateStartAngle === null) return;
-			const cx = this.rotatePivot.x;
-			const cy = this.rotatePivot.y;
-			const currentAngle = Math.atan2(pointer.y - cy, pointer.x - cx);
-			const deltaAngle = currentAngle - this.rotateStartAngle;
-			const cosA = Math.cos(deltaAngle);
-			const sinA = Math.sin(deltaAngle);
-			const rotatePoint = (kp) => {
-				if (!kp) return null;
-				const dx = kp.x - cx;
-				const dy = kp.y - cy;
-				return {
-					x: cx + dx * cosA - dy * sinA,
-					y: cy + dx * sinA + dy * cosA
-				};
-			};
-			for (let i = 0; i < pose.keypoints.length; i++) {
-				pose.keypoints[i] = rotatePoint(this.dragStartPose.keypoints[i]);
-			}
-			if (Array.isArray(pose.faceKeypoints) && Array.isArray(this.dragStartPose.faceKeypoints)) {
-				for (let i = 0; i < pose.faceKeypoints.length; i++) {
-					pose.faceKeypoints[i] = rotatePoint(this.dragStartPose.faceKeypoints[i]);
-				}
-			}
-			if (Array.isArray(pose.handLeftKeypoints) && Array.isArray(this.dragStartPose.handLeftKeypoints)) {
-				for (let i = 0; i < pose.handLeftKeypoints.length; i++) {
-					pose.handLeftKeypoints[i] = rotatePoint(this.dragStartPose.handLeftKeypoints[i]);
-				}
-			}
-			if (Array.isArray(pose.handRightKeypoints) && Array.isArray(this.dragStartPose.handRightKeypoints)) {
-				for (let i = 0; i < pose.handRightKeypoints.length; i++) {
-					pose.handRightKeypoints[i] = rotatePoint(this.dragStartPose.handRightKeypoints[i]);
-				}
-			}
-			this.requestRedraw();
-		}
+		// Delegate drag handling to the interaction manager (see core/interaction.js)
+		this.interaction.handlePointerMove(pointer, evt);
 	}
-	
 	handlePointerUp(evt) {
 		if (this.handEditMode) {
 			this.handleHandEditPointerUp(evt);
 			return;
 		}
-		// ── Drag-to-delete: drop on trash target deletes the keypoint ──
-		if (this.activeDragMode === 'dragKeypoint' && this.trashTargetHovered && this.dragStartKeypoint) {
-			const { poseIndex, keypointId } = this.dragStartKeypoint;
-			// Restore keypoint to start position before clearing (so we nullify cleanly)
-			const pose = this.poses[poseIndex];
-			if (pose && pose.keypoints) {
-				this.restoreAttachedHands(pose);
-				pose.keypoints[keypointId] = null;
-				this.markKeypointEdited();
-			}
-			// Reset all drag state
-			this.trashTargetHovered = false;
-			this.activeDragMode = 'none';
-			this.activeKeypointId = null;
-			this.dragStartPointer = null;
-			this.dragStartKeypoint = null;
-			this.dragStartAttachedHands = null;
-			this.wristFusionTargets = null;
-			this.canvas.releasePointerCapture(evt.pointerId);
-			this.notifyChange('geometry');
-			this.updateCursor();
-			this.requestRedraw();
-			return;
-		}
+		// Delegate pointerup to the active interaction mode (see core/interaction.js).
+		// Modes finalize their own state and call resetDragState(evt) at the end.
+		this.interaction.handlePointerUp(evt);
+	}
 
-		const isHandTransform = this.activeDragMode === 'moveHand' || this.activeDragMode === 'scaleHand' || this.activeDragMode === 'rotateHand';
-		if (isHandTransform && this.selectedHand) {
-			const handRef = this.selectedHand;
-			const pose = this.poses[handRef.poseIndex];
-			const { property } = this.getHandSideConfig(handRef.side);
-			if (this.activeDragMode === 'moveHand') {
-				this.snapMovedHandToBodyWrist(pose, handRef.side);
-			}
-			const changed = !!pose && JSON.stringify(pose[property]) !== JSON.stringify(this.dragStartHandKeypoints);
-			if (changed) {
-				this.markKeypointEdited();
-				this.notifyChange('geometry');
-			}
-		}
-
-		if (this.activeDragMode === 'dragKeypoint' || this.activeDragMode === 'moveSelectedKeypoints' || this.activeDragMode === 'scaleSelectedKeypoints') {
-			const poseIndex = this.dragStartKeypoint?.poseIndex ?? this.selectedPoseIndex;
-			this.fuseBodyWristsAtHandTargets(this.poses[poseIndex]);
-		}
-
-		if (this.activeDragMode === 'dragKeypoint' && this.dragStartKeypoint) {
-			const pose = this.poses[this.dragStartKeypoint.poseIndex];
-			const kp = pose ? pose.keypoints[this.dragStartKeypoint.keypointId] : null;
-			if (kp && (kp.x !== this.dragStartKeypoint.x || kp.y !== this.dragStartKeypoint.y)) {
-				this.markKeypointEdited();
-			}
-		}
-
-		// Finalise marquee: select keypoints from active pose inside the rect
-		if (this.activeDragMode === 'marquee' && this.marqueeRect !== null) {
-			const rect = this.marqueeRect;
-			const rxMin = Math.min(rect.x1, rect.x2);
-			const rxMax = Math.max(rect.x1, rect.x2);
-			const ryMin = Math.min(rect.y1, rect.y2);
-			const ryMax = Math.max(rect.y1, rect.y2);
-			const dragWidth = rxMax - rxMin;
-			const dragHeight = ryMax - ryMin;
-			// Treat sub-5px drag as a plain click: deselect the pose (same as original empty-space click)
-			const isClick = dragWidth < 5 && dragHeight < 5;
-			if (isClick) {
-				this.marqueeRect = null;
-				this.marqueeSelectionBase = null;
-				this.setSelectedPose(null);
-			} else {
-				const newSelection = this.marqueeSelectionBase ? new Set(this.marqueeSelectionBase) : new Set();
-				if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length) {
-					const activePose = this.poses[this.selectedPoseIndex];
-					for (let kpId = 0; kpId < activePose.keypoints.length; kpId++) {
-						const kp = activePose.keypoints[kpId];
-						if (kp && kp.x >= rxMin && kp.x <= rxMax && kp.y >= ryMin && kp.y <= ryMax) {
-							newSelection.add(kpId);
-						}
-					}
-				}
-				this.selectedKeypointIds = newSelection;
-				this.marqueeRect = null;
-				this.marqueeSelectionBase = null;
-				this.notifyChange('select');
-			}
-		}
-
-		if (this.activeDragMode === 'moveSelectedKeypoints' || this.activeDragMode === 'scaleSelectedKeypoints') {
-			this.markKeypointEdited();
-			this.notifyChange('geometry');
-		} else if (this.activeDragMode !== 'none' && this.activeDragMode !== 'marquee' && !isHandTransform) {
-			this.notifyChange('geometry');
-		}
-		
+	/**
+	 * Reset all shared drag-state after a pointerup.  Called by every
+	 * interaction mode's onUp handler.
+	 * @param {Event} evt
+	 */
+	resetDragState(evt) {
 		this.trashTargetHovered = false;
 		this.activeDragMode = 'none';
 		this.activeKeypointId = null;
@@ -4191,8 +3477,10 @@ export class OpenPoseCanvas2D {
 		this.dragStartKeypointMap = null;
 		this.rotatePivot = null;
 		this.rotateStartAngle = null;
-		this.canvas.releasePointerCapture(evt.pointerId);
-		
+		if (evt && this.canvas.hasPointerCapture?.(evt.pointerId)) {
+			this.canvas.releasePointerCapture(evt.pointerId);
+		}
+
 		// Update cursor after drag ends (may restore to default or keep crosshair if still hovering)
 		this.updateCursor();
 		this.requestRedraw();
