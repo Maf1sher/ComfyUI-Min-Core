@@ -394,6 +394,16 @@
     align-items: center;
 }
 
+.ope-openpose-modal .openpose-save-row {
+    align-items: stretch;
+}
+
+.ope-openpose-modal .openpose-save-row .openpose-btn {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
 .ope-openpose-modal .openpose-preset-header {
     justify-content: space-between;
 }

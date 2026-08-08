@@ -1899,6 +1899,7 @@ class OpenPosePanel {
 								: null,
 							canvas_width: Number(preset.canvas_width) || Number(preset.width) || normalized.baseWidth,
 							canvas_height: Number(preset.canvas_height) || Number(preset.height) || normalized.baseHeight,
+							tags: preset.tags || "",
 							validationError  // Track validation error if any
 						};
 						this.moduleManager?.decoratePreset?.(presetEntry, fileInfo);
@@ -2283,6 +2284,10 @@ app.registerExtension({
             node._mincoreBgSize = typeof bgSize === "string" ? bgSize : "";
 
             const poseJson = detail.output?.pose_json?.[0];
+            const poseTags = detail.output?.pose_tags?.[0];
+            if (typeof poseTags === "string") {
+                node.properties.poseTags = poseTags;
+            }
             if (typeof poseJson !== "string" || poseJson.trim().length === 0) {
                 // No pose payload, but background may still need updating.
                 if (node.openPosePanel && typeof node.openPosePanel.updateNodeInputBackground === "function") {
@@ -2336,6 +2341,7 @@ app.registerExtension({
                 if (!this.properties) {
                     this.properties = {};
                     this.properties.savedPose = "";
+                    this.properties.poseTags = "";
                 }
 
                 // Ephemeral editor background state (set on execution, not serialized).

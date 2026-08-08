@@ -1044,6 +1044,23 @@ export function normalizePresetData(payload, filename = "") {
     return null;
   }
 
+  const applyPoseMetadata = (preset, source) => {
+    if (!source || typeof source !== "object" || !source.metadata) {
+      return preset;
+    }
+    const meta = source.metadata;
+    if (typeof meta.name === "string" && meta.name.trim().length > 0) {
+      preset.label = meta.name.trim();
+      preset.id = meta.name.trim();
+    }
+    if (typeof meta.tags === "string" && meta.tags.trim().length > 0) {
+      preset.tags = meta.tags.trim();
+    } else if (Array.isArray(meta.tags) && meta.tags.length > 0) {
+      preset.tags = meta.tags.join(", ");
+    }
+    return preset;
+  };
+
   // POSE_KEYPOINT format: { people: [{pose_keypoints_2d: [...]}], canvas_width, canvas_height }
   if (Array.isArray(payload.people) && payload.people.length > 0) {
     const baseWidth = Number(payload.canvas_width) || 512;
@@ -1094,6 +1111,7 @@ export function normalizePresetData(payload, filename = "") {
         canvas_width: baseWidth,
         canvas_height: baseHeight,
       };
+      applyPoseMetadata(preset, payload);
       if (hasExtraKeypoints(faceKeypoints)) {
         preset.faceKeypoints = faceKeypoints;
       }
@@ -1141,6 +1159,7 @@ export function normalizePresetData(payload, filename = "") {
         canvas_width: baseWidth,
         canvas_height: baseHeight,
       };
+      applyPoseMetadata(preset, payload);
       const faceGroups = normalizeExtraGroupsFromPayload(
         payload.face_keypoints_2d,
         baseWidth,
@@ -1254,6 +1273,7 @@ export function normalizePresetData(payload, filename = "") {
         canvas_width: poseWidth || baseWidth,
         canvas_height: poseHeight || baseHeight,
       };
+      applyPoseMetadata(preset, pose);
       if (hasExtraKeypoints(faceKeypoints)) {
         preset.faceKeypoints = faceKeypoints;
       }

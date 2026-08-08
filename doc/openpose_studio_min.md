@@ -100,6 +100,9 @@ The **Pose Editor** tab is laid out as follows:
 - **render_face** (Boolean, default: True) — Whether to draw face keypoints.
 - **pose_keypoint** (POSE_KEYPOINT, optional) — When connected, overrides the
   widget value.
+- **pose_tags** (STRING, optional) — Comma-separated tags describing the pose
+  (e.g. `sitting, japanese, indoor`). Passed to the editor so they pre-fill the
+  **Save to Gallery** dialog. Only metadata; it does not affect rendering.
 - **areas** (CONDITIONING_AREAS, optional) — Conditioning area data shown as an
   overlay in the editor canvas (used with Conditioning Pipeline nodes).
 - **background_image** (IMAGE, optional) — When connected, the image is shown as
@@ -159,6 +162,26 @@ categories (`misc/`, `dev/`). Additional pose libraries can be added to ComfyUI
 via the `mincore_openpose_poses` model folder key. The editor's Gallery and
 preset dropdown load from these files through the `/mincore/openpose/poses` REST
 endpoint.
+
+## Save to Gallery
+
+The **Save to Gallery** button in the **JSON pose file** section writes the
+current canvas into the pose library so it shows up in the Gallery and the
+preset dropdown:
+
+1. A dialog asks for a **name** (pre-filled with an auto-generated
+   `saved-YYYYMMDD-HHMMSS` value; leave empty to keep the auto name) and
+   **tags** (pre-filled from the `pose_tags` input).
+2. The pose is sent to `POST /mincore/openpose/poses/save`, which adds a
+   top-level `metadata` object (`{"name": ..., "tags": ...}`) and writes the
+   file to `poses/saved/` inside the first configured pose library.
+3. Filename collisions get a numeric suffix (`-2`, `-3`, ...) instead of being
+   overwritten; the name is sanitized to safe filesystem characters.
+4. On success the Gallery reloads and the saved pose appears under the `saved`
+   group with its tags shown in the details panel.
+
+Tags are stored as plain comma-separated text in the JSON `metadata` block and
+are also searched by the Gallery filter.
 
 ## Render style
 

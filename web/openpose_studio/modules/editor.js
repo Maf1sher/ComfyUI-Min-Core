@@ -421,6 +421,7 @@ export const poseEditorCanvasWorkflow = {
 			this.saveToNode();
 		});
 		container.querySelector('[data-action="save"]').addEventListener("click", () => this.save());
+		container.querySelector('[data-action="save-gallery"]').addEventListener("click", () => this.saveToGallery());
 		container.querySelector('[data-action="load"]').addEventListener("click", () => this.load());
 		const undoActionBtn = container.querySelector('[data-action="undo"]');
 		if (undoActionBtn) {
@@ -2339,6 +2340,57 @@ ${tabsSectionHtml}
 		URL.revokeObjectURL(a.href);
 	},
 
+	async saveToGallery() {
+		const includeExtras = typeof this.shouldPreserveExtraKeypoints === "function"
+			? this.shouldPreserveExtraKeypoints() : false;
+		const payload = this.buildOpenPosePayload(includeExtras);
+		const defaultTags = (this.node?.properties?.poseTags) || "";
+		const now = new Date();
+		const pad = (n) => String(n).padStart(2, "0");
+		const defaultName = `saved-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+
+		const result = await showPrompt(
+			t("pose_editor.save_dialog.title"),
+			t("pose_editor.save_dialog.name"),
+			defaultName
+		);
+		if (result === null) {
+			return;
+		}
+		const name = result.trim();
+		const tags = await showPrompt(
+			t("pose_editor.save_dialog.title"),
+			t("pose_editor.save_dialog.tags"),
+			defaultTags
+		);
+		if (tags === null) {
+			return;
+		}
+
+		try {
+			const response = await fetch("/mincore/openpose/poses/save", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					name,
+					tags: tags.trim(),
+					pose_json: payload,
+				}),
+			});
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) {
+				throw new Error(data.error || `HTTP ${response.status}`);
+			}
+			const savedName = name || (data.path || "").split("/").pop().replace(/\.json$/i, "");
+			showToast("success", t("gallery.toast.saved", { name: savedName }));
+			if (typeof this.loadPresetsFromJson === "function") {
+				this.loadPresetsFromJson();
+			}
+		} catch (error) {
+			showToast("error", t("pose_editor.save_dialog.error"), String(error?.message || error));
+		}
+	},
+
 	loadJSON(text, filename = "", options = {}) {
 		const { silent = false, presetIndex = null } = options;
 		this._initializing = true;
@@ -3378,6 +3430,7 @@ function buildPoseEditorOverlayHtml() {
                 <div class="openpose-save-row">
                     <button class="openpose-btn" data-action="load">${t("pose_editor.btn.load")}</button>
                     <button class="openpose-btn" data-action="save">${t("pose_editor.btn.save")}</button>
+                    <button class="openpose-btn" data-action="save-gallery">${t("pose_editor.save_to_gallery")}</button>
                 </div>
             </div>
             <div class="openpose-section-group">

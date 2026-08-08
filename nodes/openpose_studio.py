@@ -11,6 +11,8 @@ style sync, and the Show String helper output node.
 import json
 import math
 import os
+import re
+import time
 import uuid
 from io import BytesIO
 
@@ -1219,6 +1221,84 @@ async def list_poses(request):
     return web.json_response({"files": legacy_files, "entries": entries, "unavailable": unavailable})
 
 
+def _sanitize_pose_filename(name: str) -> str:
+    """Sanitize a user-supplied pose name into a safe basename (no extension)."""
+    cleaned = name.strip()
+    cleaned = re.sub(r"[^\w\- ]+", "", cleaned, flags=re.UNICODE)
+    cleaned = re.sub(r"[_\s]+", "-", cleaned).strip(" -_")
+    return cleaned
+
+
+def _save_pose_to_library(pose: dict, name: str) -> str:
+    """Write a pose to the first writable pose root, returning the relative path.
+
+    Colliding filenames get a numeric suffix (-2, -3, ...) appended before .json.
+    """
+    roots = get_pose_roots()
+    if not roots:
+        raise RuntimeError("No pose library roots configured")
+    root_dir = roots[0]["path"]
+
+    safe_name = _sanitize_pose_filename(name)
+    if not safe_name:
+        safe_name = f"saved-{time.strftime('%H%M%S')}"
+
+    saved_dir = os.path.join(root_dir, "saved")
+    os.makedirs(saved_dir, exist_ok=True)
+
+    candidate = safe_name
+    index = 2
+    while os.path.exists(os.path.join(saved_dir, f"{candidate}.json")):
+        candidate = f"{safe_name}-{index}"
+        index += 1
+
+    filename = f"{candidate}.json"
+    full_path = os.path.join(saved_dir, filename)
+    with open(full_path, "w", encoding="utf-8") as fh:
+        json.dump(pose, fh, indent=2, ensure_ascii=False)
+
+    return f"saved/{filename}"
+
+
+@routes.post("/mincore/openpose/poses/save")
+async def save_pose(request):
+    """Save a pose (with optional name and tags) into the pose library."""
+    try:
+        payload = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    if not isinstance(payload, dict):
+        return web.json_response({"error": "Invalid payload"}, status=400)
+
+    pose_json = payload.get("pose_json", "")
+    if isinstance(pose_json, dict):
+        pose = pose_json
+    elif isinstance(pose_json, str) and pose_json.strip():
+        try:
+            pose = json.loads(pose_json)
+        except Exception:
+            return web.json_response({"error": "Invalid pose JSON"}, status=400)
+    else:
+        return web.json_response({"error": "Missing pose_json"}, status=400)
+
+    if not isinstance(pose, dict):
+        return web.json_response({"error": "Invalid pose JSON"}, status=400)
+
+    name = str(payload.get("name", "")).strip()[:120]
+    tags = str(payload.get("tags", "")).strip()[:1000]
+
+    pose = dict(pose)
+    pose["metadata"] = {"name": name, "tags": tags}
+
+    try:
+        relative_path = _save_pose_to_library(pose, name)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+    return web.json_response({"ok": True, "path": relative_path})
+
+
 @routes.post("/mincore/openpose/render_style")
 async def update_render_style(request):
     """Receive browser-local render settings for the current runtime."""
@@ -1334,17 +1414,19 @@ async def openpose_editor_version(request):
 # ── UI output ────────────────────────────────────────────────────────────────
 
 class _OpenPoseStudioUI(_UIOutput):
-    def __init__(self, pose_json: str, background_image_uuid: str = "", background_image_size: str = ""):
+    def __init__(self, pose_json: str, background_image_uuid: str = "", background_image_size: str = "", pose_tags: str = ""):
         super().__init__()
         self.pose_json = pose_json
         self.background_image_uuid = background_image_uuid
         self.background_image_size = background_image_size
+        self.pose_tags = pose_tags
 
     def as_dict(self) -> dict:
         return {
             "pose_json": [self.pose_json],
             "background_image_uuid": [self.background_image_uuid],
             "background_image_size": [self.background_image_size],
+            "pose_tags": [self.pose_tags],
         }
 
 
@@ -1393,6 +1475,13 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
                     optional=True,
                     tooltip="Optional DWPose POSE_KEYPOINT data used instead of the pose_json widget.",
                 ),
+                io.String.Input(
+                    "pose_tags",
+                    optional=True,
+                    default="",
+                    multiline=False,
+                    tooltip="Optional comma-separated tags describing this pose. Passed to the editor so they pre-fill the Save to Gallery dialog.",
+                ),
                 ConditioningAreas.Input(
                     "areas",
                     optional=True,
@@ -1435,6 +1524,9 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
         render_hand = bool(render_hand)
         render_face = bool(render_face)
 
+        pose_tags = kwargs.get("pose_tags", "")
+        pose_tags = pose_tags if isinstance(pose_tags, str) else str(pose_tags)
+
         # If a POSE_KEYPOINT is connected, serialize it to JSON and use it in
         # place of the pose_json widget value.
         pose_keypoint_input = kwargs.get("pose_keypoint")
@@ -1449,7 +1541,7 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
         background_image_uuid, background_image_size = cache_background_image(
             kwargs.get("background_image")
         )
-        ui = lambda pj: _OpenPoseStudioUI(pj, background_image_uuid, background_image_size)
+        ui = lambda pj: _OpenPoseStudioUI(pj, background_image_uuid, background_image_size, pose_tags)
 
         if not pose_json or pose_json.strip() == "":
             # Return empty black image and empty pose if no pose

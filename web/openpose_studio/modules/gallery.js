@@ -330,6 +330,16 @@ class GalleryManager {
                 }
             }
         }
+        const tags = preset.tags ? String(preset.tags).trim() : "";
+        const tagsRow = content.querySelector('[data-gallery-detail-row="tags"]');
+        if (tagsRow) {
+            const tagsEl = tagsRow.querySelector('[data-gallery-detail="tags"]');
+            if (tagsEl) {
+                tagsEl.textContent = tags;
+            }
+            tagsRow.hidden = !tags;
+            tagsRow.title = tags;
+        }
         const handCounts = {
             left: details.leftHandCount,
             right: details.rightHandCount
@@ -528,7 +538,8 @@ class GalleryManager {
             preset?.sourceFile,
             preset?.galleryGroupTitle,
             preset?.library,
-            preset?.label
+            preset?.label,
+            preset?.tags
         ], this.searchQuery);
     }
 
@@ -727,6 +738,18 @@ class GalleryManager {
             }
             groups.get(sourceId).push(preset);
         }
+
+        order.sort((a, b) => {
+            const aSaved = a.endsWith(":saved");
+            const bSaved = b.endsWith(":saved");
+            if (aSaved && !bSaved) {
+                return -1;
+            }
+            if (!aSaved && bSaved) {
+                return 1;
+            }
+            return 0;
+        });
 
         order.forEach((sourceId) => {
             const presets = groups.get(sourceId) || [];
@@ -1104,6 +1127,10 @@ export function buildGalleryOverlayHtml() {
                         <div class="openpose-gallery-details-row">
                             <span>${t("gallery.details.location")}</span>
                             <strong class="openpose-gallery-details-path" data-gallery-detail="location"></strong>
+                        </div>
+                        <div class="openpose-gallery-details-row" data-gallery-detail-row="tags" hidden>
+                            <span>${t("gallery.details.tags")}</span>
+                            <strong data-gallery-detail="tags"></strong>
                         </div>
                         <div class="openpose-gallery-details-row">
                             <span>${t("gallery.details.format")}</span>
