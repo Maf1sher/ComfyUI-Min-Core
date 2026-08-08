@@ -57,7 +57,7 @@ This is especially useful in multi-sampler pipelines: you can iterate on later s
 
 ## Storage
 
-Both the mask and the background image are saved to `input/mincore_mask_painter_latch/` inside your ComfyUI installation:
+Both the mask and the background image are saved to `input/mincore/mask_painter/` inside your ComfyUI installation:
 - `{node_id}_mask.png` — Grayscale mask (255 = masked, 0 = unmasked).
 - `{node_id}_image.png` — Background image (RGB).
 

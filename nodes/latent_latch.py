@@ -6,7 +6,7 @@ returns the saved latent WITHOUT triggering upstream nodes. Pressing the
 Refresh button in the UI releases the latch, deletes the saved file, and
 re-evaluates upstream to capture a new latent.
 
-Persistence: files are stored under ComfyUI's ``input/mincore_latent_latch/``
+Persistence: files are stored under ComfyUI's ``input/mincore/latent_latch/``
 directory, which survives temp cleanup and ComfyUI restarts.
 """
 
@@ -28,7 +28,7 @@ import folder_paths
 # Populated by the REST endpoint, consumed by check_lazy_status.
 _force_refresh_nodes: set[str] = set()
 
-_LATCH_SUBDIR = "mincore_latent_latch"
+_LATCH_SUBDIR = os.path.join("mincore", "latent_latch")
 
 
 # ── Disk helpers ──────────────────────────────────────────────────────────────

@@ -35,6 +35,6 @@ When a latent is latched, the node produces a **stable cache fingerprint** based
 This is especially useful in multi-sampler pipelines: you can iterate on later stages without regenerating earlier (potentially expensive) results.
 
 ## Storage
-The latched latents are saved as SafeTensors files in the `input/mincore_latent_latch/` directory inside your ComfyUI installation.
+The latched latents are saved as SafeTensors files in the `input/mincore/latent_latch/` directory inside your ComfyUI installation.
 - **Persistence:** Because the files are stored in `input/`, they survive ComfyUI restarts and temp directory cleanups.
 - **Cleanup:** You can manually delete the files in this directory if you want to free up space. Doing so will simply unlatch all nodes.

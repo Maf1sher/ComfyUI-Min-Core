@@ -34,7 +34,9 @@ _PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 POSES_DIR = os.path.join(_PLUGIN_DIR, "poses")
 # User-saved poses go to ComfyUI's input directory so they survive plugin
 # updates/reinstalls (same pattern as mask_painter_latch).
-USER_POSES_DIR = os.path.join(folder_paths.get_input_directory(), "mincore_poses")
+USER_POSES_DIR = os.path.join(
+    folder_paths.get_input_directory(), "mincore", "user_poses"
+)
 POSES_FOLDER_KEY = "mincore_openpose_poses"
 ASSETS_DIR = os.path.join(_PLUGIN_DIR, "assets")
 LOCALES_DIR = os.path.join(_PLUGIN_DIR, "locales")
@@ -1238,7 +1240,7 @@ def _save_pose_to_library(pose: dict, name: str) -> str:
     """Write a pose to the user pose library, returning the relative path.
 
     Saved poses are stored under ComfyUI's input directory
-    (``input/mincore_poses/saved/``) so they persist across plugin updates.
+    (``input/mincore/user_poses/saved/``) so they persist across plugin updates.
     Colliding filenames get a numeric suffix (-2, -3, ...) before .json.
     """
     safe_name = _sanitize_pose_filename(name)

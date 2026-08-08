@@ -15,7 +15,7 @@ Based on NKD Mask Painter from ComfyUI-NKD-Preview-Tools:
 https://github.com/Nekodificador/ComfyUI-NKD-Preview-Tools
 
 Persistence: files are stored under ComfyUI's
-``input/mincore_mask_painter_latch/`` directory, which survives temp
+``input/mincore/mask_painter/`` directory, which survives temp
 cleanup and ComfyUI restarts.
 """
 
@@ -34,7 +34,7 @@ from comfy_api.latest._io import _UIOutput
 
 # ── Module-level state ────────────────────────────────────────────────────────
 
-_LATCH_SUBDIR = "mincore_mask_painter_latch"
+_LATCH_SUBDIR = os.path.join("mincore", "mask_painter")
 _TEMP_PREFIX = "MinCoreMaskPainter/MCMP-"
 
 # pb_id ("$<node_id>-<counter>") → (abs_rgba_path, rgba_item, clean_item|None)

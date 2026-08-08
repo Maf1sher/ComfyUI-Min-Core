@@ -164,7 +164,7 @@ preset dropdown load from these files through the `/mincore/openpose/poses` REST
 endpoint.
 
 The shipped `poses/` directory is read-only. Poses saved from the editor are
-written to `input/mincore_poses/` under ComfyUI's input directory, so they
+written to `input/mincore/user_poses/` under ComfyUI's input directory, so they
 survive plugin updates and reinstalls.
 
 ## Save to Gallery
@@ -178,7 +178,7 @@ preset dropdown:
    **tags** (pre-filled from the `pose_tags` input).
 2. The pose is sent to `POST /mincore/openpose/poses/save`, which adds a
    top-level `metadata` object (`{"name": ..., "tags": ...}`) and writes the
-   file to `input/mincore_poses/saved/` in ComfyUI's input directory.
+   file to `input/mincore/user_poses/saved/` in ComfyUI's input directory.
 3. Filename collisions get a numeric suffix (`-2`, `-3`, ...) instead of being
    overwritten; the name is sanitized to safe filesystem characters.
 4. On success the Gallery reloads and the saved pose appears under the `saved`
