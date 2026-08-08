@@ -881,6 +881,22 @@ addPose(keypoints = undefined, faceKeypoints = null, handLeftKeypoints = null, h
 	},
 
 	handleEditorKeyDown(e) {
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+			if (e.shiftKey) {
+				this.redo();
+			} else {
+				this.undo();
+			}
+			e.preventDefault();
+			e.stopImmediatePropagation();
+			return;
+		}
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+			this.redo();
+			e.preventDefault();
+			e.stopImmediatePropagation();
+			return;
+		}
 		if (this.renderer?.isHandEditModeActive?.() && ["ArrowDown", "ArrowUp", "Delete", "Backspace"].includes(e.key)) {
 			e.preventDefault();
 			e.stopImmediatePropagation();
@@ -913,14 +929,6 @@ addPose(keypoints = undefined, faceKeypoints = null, handLeftKeypoints = null, h
 					this.saveToNode();
 					this.refreshCocoKeypointsPanel();
 				}
-				e.preventDefault();
-				e.stopImmediatePropagation();
-			}
-		}
-		if (e.key === "Backspace") {
-			// Backspace key: undo last action
-			if (this.undo_history.length > 1) {
-				this.undo();
 				e.preventDefault();
 				e.stopImmediatePropagation();
 			}
@@ -2108,6 +2116,7 @@ ${tabsSectionHtml}
 		if (this.undo_history.length <= 1) {
 			return;
 		}
+		this.lockMode = true;
 		const current = this.undo_history.pop();
 		this.redo_history.push(current);
 		const previous = this.undo_history[this.undo_history.length - 1];
@@ -2125,6 +2134,8 @@ ${tabsSectionHtml}
 			this.updateCanvasBoundsWarning();
 		} catch (e) {
 			console.warn("[OpenPose Studio] Failed to restore undo state:", e);
+		} finally {
+			this.lockMode = false;
 		}
 	},
 
@@ -2132,6 +2143,7 @@ ${tabsSectionHtml}
 		if (this.redo_history.length === 0) {
 			return;
 		}
+		this.lockMode = true;
 		const snapshot = this.redo_history.pop();
 		this.undo_history.push(snapshot);
 		// Restore renderer state and selection
@@ -2148,6 +2160,8 @@ ${tabsSectionHtml}
 			this.updateCanvasBoundsWarning();
 		} catch (e) {
 			console.warn("[OpenPose Studio] Failed to restore redo state:", e);
+		} finally {
+			this.lockMode = false;
 		}
 	},
 

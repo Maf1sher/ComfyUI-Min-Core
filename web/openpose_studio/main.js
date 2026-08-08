@@ -1020,14 +1020,19 @@ class OpenPosePanel {
 
 		const keyHandler = this.onKeyDown.bind(this);
 
-		document.addEventListener("keydown", keyHandler)
-
+		if (this.container) {
+			this.container.setAttribute("tabindex", "-1");
+			this.container.style.outline = "none";
+			this.container.addEventListener("keydown", keyHandler, true);
+		}
 		// Track if changes were confirmed
 		this.confirmed = false;
 
 		this.panel.onClose = () => {
 			this._disposed = true;
-			document.removeEventListener("keydown", keyHandler)
+			if (this.container) {
+				this.container.removeEventListener("keydown", keyHandler, true);
+			}
 			this.renderer?.cancelHandEditMode?.();
 			this.stopPanelDrag();
 			if (this.panelDragHandle && this._panelDragMouseDownHandler) {
@@ -1726,6 +1731,9 @@ class OpenPosePanel {
 			this.setSidebarControlsDisabled(handEditActive);
 			this.setBackgroundControlsEnabled(!!this.backgroundImage, { mode: !handEditActive });
 			this.scheduleCanvasFit();
+			if (this.container) {
+				this.container.focus();
+			}
 			return;
 		}
 
