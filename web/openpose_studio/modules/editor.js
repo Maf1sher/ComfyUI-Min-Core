@@ -2,8 +2,6 @@
 import { t } from "./i18n.js";
 import { UiIcons } from "../ui-icons.js";
 import {
-	buildDonationFooterHtml,
-	applyDonationFooterStyles,
 	cloneKeypoints,
 	DEFAULT_CANVAS_WIDTH,
 	DEFAULT_CANVAS_HEIGHT,
@@ -1105,13 +1103,6 @@ export const poseEditorSubsystemWorkflow = {
 		const poses = this.renderer ? this.renderer.getPoses() : [];
 		const selectedIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
 		const noPoses = poses.length === 0;
-		// Style + wire donation footer buttons (shared module)
-		const donationRoot = this.cocoKeypointsList
-			? this.cocoKeypointsList.closest(".openpose-coco-keypoints-card")
-			: null;
-		if (donationRoot) {
-			applyDonationFooterStyles(donationRoot);
-		}
 		const handEditMode = this.renderer?.getHandEditModeInfo?.();
 		if (handEditMode) {
 			this.refreshHandKeypointsList(handEditMode);
@@ -2001,8 +1992,7 @@ ${tabsSectionHtml}
 			}
 			const controls = Array.from(sidebar.querySelectorAll("button, input, select, textarea"))
 				.filter((control) => (
-					!control.classList.contains("openpose-support-btn")
-					&& !control.closest(".openpose-hand-keypoint-item")
+					!control.closest(".openpose-hand-keypoint-item")
 				));
 			controls.forEach((control) => {
 				if (control.dataset.sidebarPrevDisabled === undefined) {
@@ -3355,7 +3345,6 @@ function buildPoseEditorOverlayHtml() {
     </div>
 	<div class="ope-openpose-shell-drag-handle ope-openpose-modal-drag-handle" data-role="drag-handle" aria-hidden="true"></div>
 	<div class="openpose-tab-controls ope-openpose-shell-header-right ope-openpose-modal-controls">
-		<button class="openpose-tab-contribute" data-action="open-about" title="Open About">${t("pose_editor.tab.contribute")} 💙</button>
         <button class="openpose-tab-maximize" data-action="toggle-maximize"></button>
         <button class="openpose-tab-close" data-action="close-editor">\u{2716}\u{FE0F}</button>
     </div>
@@ -3459,7 +3448,6 @@ function buildPoseEditorOverlayHtml() {
                 <span class="openpose-keypoints-help" title="${t("pose_editor.keypoints.perspective_tooltip")}" aria-label="${t("pose_editor.keypoints.perspective_tooltip")}">${UiIcons.svg('info', { size: 14, className: 'openpose-ui-icon' })}</span>
             </div>
             <div class="openpose-coco-keypoints-list"></div>
-            ${buildDonationFooterHtml()}
         </div>
     </div>
     <div class="openpose-module-slot openpose-module-overlay-slot" data-module-slot="overlay"></div>

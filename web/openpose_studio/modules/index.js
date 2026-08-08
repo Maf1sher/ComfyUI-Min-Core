@@ -142,9 +142,7 @@ async function loadOptionalModules() {
     const modulePaths = [
         "./merger.js",
         "./render.js",
-        "./gallery.js",
-        "./guide.js",
-        "./about.js"
+        "./gallery.js"
     ];
     const results = await Promise.allSettled(
         modulePaths.map((path) => import(path))

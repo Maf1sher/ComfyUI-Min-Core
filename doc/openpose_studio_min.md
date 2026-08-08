@@ -46,8 +46,6 @@ The editor panel is a full-window overlay divided into tabs:
 - **Poses Merger** — merge multiple pose JSON files into one canvas.
 - **Render** — adjust the runtime render style (line width, keypoint radius,
   colors for body / hands / face).
-- **Guide** — quick reference for where poses come from and how to import them.
-- **About** — version info, update checks and support links.
 
 The **Pose Editor** tab is laid out as follows:
 

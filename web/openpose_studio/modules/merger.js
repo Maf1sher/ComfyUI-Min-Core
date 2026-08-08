@@ -1,5 +1,5 @@
 ﻿import { t } from "./i18n.js";
-import { buildDonationFooterHtml, applyDonationFooterStyles, showToast, showConfirm, showPrompt, readFileToText, drawBoneWithOutline, drawKeypointWithOutline, extractKeypointsFromPoseKeypoints2d as importKeypointsFromPoseKeypoints2d } from "../utils.js";
+import { showToast, showConfirm, showPrompt, readFileToText, drawBoneWithOutline, drawKeypointWithOutline, extractKeypointsFromPoseKeypoints2d as importKeypointsFromPoseKeypoints2d } from "../utils.js";
 import { getFormat, DEFAULT_FORMAT_ID, getFormatForPose, detectFormatFromMetadata, detectFormat, detectFormatFromFlat, listFormats, isFormatEditAllowed } from "../formats/index.js";
 import { registerModule } from "./index.js";
 import { UiIcons } from "../ui-icons.js";
@@ -57,7 +57,6 @@ export function buildPresetsMergerOverlayHtml() {
                 <button class="openpose-btn openpose-apply-btn openpose-merge-export" data-action="merge-export" title="Export a combined pose collection JSON file.">${t("pose_merger.btn.export_json")}</button>
             </div>
             <div class="openpose-spacer"></div>
-            ${buildDonationFooterHtml()}
         </div>
     </div>
 `;
@@ -66,7 +65,7 @@ export function buildPresetsMergerOverlayHtml() {
 export function setupPresetsMergerStyles(container) {
   container
     .querySelectorAll(
-      ".openpose-merge-panel .openpose-btn:not(.openpose-apply-btn):not(.openpose-cancel-btn):not(.openpose-support-btn)",
+      ".openpose-merge-panel .openpose-btn:not(.openpose-apply-btn):not(.openpose-cancel-btn)",
     )
     .forEach((btn) => {
       btn.style.padding = "6px 12px";
@@ -371,13 +370,9 @@ export function setupPresetsMergerStyles(container) {
     }
   });
 
-  // Spacer pushes donation footer to bottom of the card
   container.querySelectorAll(".openpose-merge-sidebar-card .openpose-spacer").forEach((spacer) => {
     spacer.style.flex = "1";
   });
-
-  // Donation footer (shared with pose editor sidebar)
-  applyDonationFooterStyles(container);
 }
 
 export const poseMergerOverlay = {

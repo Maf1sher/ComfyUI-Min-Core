@@ -32,9 +32,6 @@ const ICON_PATHS = {
   layers: `<path d="M12 2l9 5-9 5-9-5 9-5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 12l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 17l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>`,
   // “Render”
   sliders: `<path d="M4 21v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 10V3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 21v-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 8V3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 21v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 12V3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M2 14h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 12h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 16h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
-  // “Guide”
-  book: `<path d="M4 19a2 2 0 0 0 2 2h13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M6 17V5a2 2 0 0 1 2-2h11v16H8a2 2 0 0 0-2 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>`,
-  // “About”
   info: `<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 16v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 8h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>`,
 };
 

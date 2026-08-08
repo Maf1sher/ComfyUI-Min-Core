@@ -551,18 +551,6 @@ class OpenPosePanel {
             tabClose.addEventListener("click", () => this.requestClose());
         }
 
-		const contributeBtn = container.querySelector(".openpose-tab-contribute");
-		if (contributeBtn) {
-			contributeBtn.addEventListener("click", () => {
-				this.setActiveTab("about");
-				showToast(
-					"info",
-					t("about.support.toast_title"),
-					t("about.support.toast_body")
-				);
-			});
-		}
-
         const leftPlaceholder = container.querySelector(".openpose-sidebar-placeholder-left");
         const rightPlaceholder = container.querySelector(".openpose-sidebar-placeholder-right");
         const leftSidebar = container.querySelector(".openpose-sidebar:not(.openpose-sidebar-right)");
