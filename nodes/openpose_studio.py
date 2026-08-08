@@ -30,7 +30,11 @@ from server import PromptServer
 
 _PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Shipped pose library lives inside the package (read-only for saving).
 POSES_DIR = os.path.join(_PLUGIN_DIR, "poses")
+# User-saved poses go to ComfyUI's input directory so they survive plugin
+# updates/reinstalls (same pattern as mask_painter_latch).
+USER_POSES_DIR = os.path.join(folder_paths.get_input_directory(), "mincore_poses")
 POSES_FOLDER_KEY = "mincore_openpose_poses"
 ASSETS_DIR = os.path.join(_PLUGIN_DIR, "assets")
 LOCALES_DIR = os.path.join(_PLUGIN_DIR, "locales")
@@ -49,6 +53,7 @@ _warned_inaccessible_pose_paths = set()
 _inaccessible_pose_paths = {}
 
 folder_paths.add_model_folder_path(POSES_FOLDER_KEY, POSES_DIR, is_default=True)
+folder_paths.add_model_folder_path(POSES_FOLDER_KEY, USER_POSES_DIR)
 
 
 # ── Custom io types ──────────────────────────────────────────────────────────
@@ -1230,20 +1235,17 @@ def _sanitize_pose_filename(name: str) -> str:
 
 
 def _save_pose_to_library(pose: dict, name: str) -> str:
-    """Write a pose to the first writable pose root, returning the relative path.
+    """Write a pose to the user pose library, returning the relative path.
 
-    Colliding filenames get a numeric suffix (-2, -3, ...) appended before .json.
+    Saved poses are stored under ComfyUI's input directory
+    (``input/mincore_poses/saved/``) so they persist across plugin updates.
+    Colliding filenames get a numeric suffix (-2, -3, ...) before .json.
     """
-    roots = get_pose_roots()
-    if not roots:
-        raise RuntimeError("No pose library roots configured")
-    root_dir = roots[0]["path"]
-
     safe_name = _sanitize_pose_filename(name)
     if not safe_name:
         safe_name = f"saved-{time.strftime('%H%M%S')}"
 
-    saved_dir = os.path.join(root_dir, "saved")
+    saved_dir = os.path.join(USER_POSES_DIR, "saved")
     os.makedirs(saved_dir, exist_ok=True)
 
     candidate = safe_name
