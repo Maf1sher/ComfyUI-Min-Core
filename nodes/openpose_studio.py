@@ -1303,6 +1303,45 @@ async def save_pose(request):
     return web.json_response({"ok": True, "path": relative_path})
 
 
+@routes.delete("/mincore/openpose/poses/{source_id}/{filepath:.*}")
+async def delete_pose(request):
+    """Delete a pose file from a user-writable pose library."""
+    try:
+        source_id = int(request.match_info.get("source_id", "-1"))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "Invalid source"}, status=400)
+
+    sources = {source["id"]: source for source in get_pose_roots()}
+    source = sources.get(source_id)
+    if source is None:
+        return web.json_response({"error": "Unknown source"}, status=404)
+
+    if source.get("builtin"):
+        return web.json_response({"error": "Cannot delete builtin poses"}, status=403)
+
+    filepath = request.match_info.get("filepath", "")
+    if not filepath.lower().endswith(".json"):
+        return web.json_response({"error": "Invalid file type"}, status=400)
+
+    normalized_path = filepath.replace("/", os.sep).replace("\\", os.sep)
+    root_dir = source["path"]
+    full_path = os.path.realpath(os.path.join(root_dir, normalized_path))
+
+    # Verify the resolved path is still within its configured library root.
+    if not folder_paths.is_within_directory(root_dir, full_path):
+        return web.json_response({"error": "Invalid path"}, status=400)
+
+    if not os.path.isfile(full_path):
+        return web.json_response({"error": "File not found"}, status=404)
+
+    try:
+        os.remove(full_path)
+    except OSError as e:
+        return web.json_response({"error": f"Failed to delete: {e}"}, status=500)
+
+    return web.json_response({"ok": True})
+
+
 @routes.post("/mincore/openpose/render_style")
 async def update_render_style(request):
     """Receive browser-local render settings for the current runtime."""
