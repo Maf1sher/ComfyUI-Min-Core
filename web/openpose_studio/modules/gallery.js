@@ -4,6 +4,7 @@ import {
     getPersistedSetting,
     isValidKeypoint,
     setPersistedSetting,
+    showConfirm,
     showToast,
     toRgba
 } from "../utils.js";
@@ -523,6 +524,43 @@ class GalleryManager {
         this.openpose.setActiveTab("editor");
     }
 
+    async deletePreset(preset) {
+        if (!preset?.sourceFile || !preset.customLibrary) {
+            return;
+        }
+        const name = this.openpose.normalizePoseName(preset.label || preset.id || "");
+        const confirmed = await showConfirm(
+            t("gallery.delete.title"),
+            t("gallery.delete.confirm", { name })
+        );
+        if (!confirmed) {
+            return;
+        }
+        const sourceFile = preset.sourceFile;
+        const separatorIndex = sourceFile.indexOf(":");
+        const sourceId = separatorIndex === -1 ? "" : sourceFile.slice(0, separatorIndex);
+        const filepath = separatorIndex === -1 ? sourceFile : sourceFile.slice(separatorIndex + 1);
+        const encodedFilepath = filepath
+            .split("/")
+            .map((part) => encodeURIComponent(part))
+            .join("/");
+        try {
+            const response = await fetch(`/mincore/openpose/poses/${sourceId}/${encodedFilepath}`, {
+                method: "DELETE",
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP ${response.status}`);
+            }
+            showToast("success", t("gallery.toast.deleted", { name }));
+            if (typeof this.openpose.loadPresetsFromJson === "function") {
+                this.openpose.loadPresetsFromJson();
+            }
+        } catch (error) {
+            showToast("error", t("gallery.toast.delete_error"), String(error?.message || error));
+        }
+    }
+
     setSearchQuery(value) {
         const nextQuery = String(value || "").trim();
         if (nextQuery === this.searchQuery) {
@@ -888,6 +926,19 @@ class GalleryManager {
                     badge.textContent = "!";
                     badge.title = t("gallery.badge.nonstandard_file");
                     item.appendChild(badge);
+                }
+                if (preset.customLibrary) {
+                    const deleteButton = document.createElement("button");
+                    deleteButton.type = "button";
+                    deleteButton.className = "openpose-gallery-item-delete";
+                    deleteButton.title = t("gallery.item.delete");
+                    deleteButton.setAttribute("aria-label", t("gallery.item.delete"));
+                    deleteButton.textContent = "\u2715";
+                    deleteButton.addEventListener("click", (event) => {
+                        event.stopPropagation();
+                        this.deletePreset(preset);
+                    });
+                    item.appendChild(deleteButton);
                 }
 
                 op.renderPresetThumbnail(canvas, preset.keypoints, preset.canvas_width || preset.width, preset.canvas_height || preset.height);
@@ -1535,7 +1586,7 @@ export function setupGalleryOverlayStyles(container) {
                 item.style.boxShadow = item.classList.contains("is-selected")
                     ? "none"
                     : "0 2px 6px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.14)";
-                item.querySelectorAll(".openpose-gallery-nonstandard, .openpose-gallery-collection").forEach((b) => {
+                item.querySelectorAll(".openpose-gallery-nonstandard, .openpose-gallery-collection, .openpose-gallery-item-delete").forEach((b) => {
                     b.style.opacity = "1";
                 });
             });
@@ -1544,7 +1595,7 @@ export function setupGalleryOverlayStyles(container) {
                     ? "var(--openpose-gallery-selection-bg)"
                     : "transparent";
                 item.style.boxShadow = "none";
-                item.querySelectorAll(".openpose-gallery-nonstandard, .openpose-gallery-collection").forEach((b) => {
+                item.querySelectorAll(".openpose-gallery-nonstandard, .openpose-gallery-collection, .openpose-gallery-item-delete").forEach((b) => {
                     b.style.opacity = "0.45";
                 });
             });
@@ -1576,6 +1627,40 @@ export function setupGalleryOverlayStyles(container) {
         badge.style.zIndex = "3";
         badge.style.opacity = "0.45";
         badge.style.transition = "opacity 0.15s ease";
+    });
+
+    container.querySelectorAll(".openpose-gallery-item-delete").forEach((button) => {
+        button.style.position = "absolute";
+        button.style.top = "6px";
+        button.style.right = "6px";
+        button.style.width = "20px";
+        button.style.height = "20px";
+        button.style.borderRadius = "999px";
+        button.style.display = "flex";
+        button.style.alignItems = "center";
+        button.style.justifyContent = "center";
+        button.style.background = "var(--openpose-error, #E74C3C)";
+        button.style.color = "#fff";
+        button.style.fontSize = "11px";
+        button.style.fontWeight = "700";
+        button.style.lineHeight = "1";
+        button.style.border = "none";
+        button.style.padding = "0";
+        button.style.boxShadow = "0 1px 2px rgba(0,0,0,0.35)";
+        button.style.cursor = "pointer";
+        button.style.pointerEvents = "auto";
+        button.style.zIndex = "4";
+        button.style.opacity = "0.45";
+        button.style.transition = "opacity 0.15s ease, background 0.15s ease, transform 0.15s ease";
+        button.addEventListener("mouseenter", () => {
+            button.style.opacity = "1";
+            button.style.background = "var(--openpose-error, #E74C3C)";
+            button.style.transform = "scale(1.1)";
+        });
+        button.addEventListener("mouseleave", () => {
+            button.style.opacity = "0.45";
+            button.style.transform = "scale(1)";
+        });
     });
 
     container.querySelectorAll(".openpose-gallery-collection").forEach((badge) => {
