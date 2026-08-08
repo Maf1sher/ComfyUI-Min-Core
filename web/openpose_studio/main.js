@@ -2353,6 +2353,9 @@ app.registerExtension({
                 // Find the pose_json widget (created by Python INPUT_TYPES)
                 this.jsonWidget = this.widgets.find(w => w.name === "pose_json");
 
+                // Find the pose_tags widget (created by Python INPUT_TYPES)
+                this.tagsWidget = this.widgets.find(w => w.name === "pose_tags");
+
                 this.openOpenPoseEditor = () => {
                     const graphCanvas = LiteGraph.LGraphCanvas.active_canvas
                     if (graphCanvas == null)
@@ -2501,6 +2504,19 @@ app.registerExtension({
                     };
                 }
 
+                // In Nodes 2.0, inline widget edits call widget.callback directly.
+                // Patch the callback so the current pose_tags value is always synced
+                // into node.properties.poseTags (used to pre-fill the Save dialog).
+                if (this.tagsWidget) {
+                    const origCallback = this.tagsWidget.callback;
+                    const node = this;
+                    this.tagsWidget.callback = function(value) {
+                        if (origCallback) origCallback.call(this, value);
+                        if (!node.properties) node.properties = {};
+                        node.properties.poseTags = (typeof value === "string") ? value : "";
+                    };
+                }
+
                 // Sync incoming connected Pose JSON back into widget state and preview
                 // after each server-side execution. Handled globally in the extension
                 // setup() via api.addEventListener("executed", ...) to avoid relying
@@ -2555,6 +2571,11 @@ app.registerExtension({
                     if (this.updatePreview) {
                         this.updatePreview();
                     }
+                } else if (name === "pose_tags") {
+                    if (!this.properties) {
+                        this.properties = {};
+                    }
+                    this.properties.poseTags = (typeof value === "string") ? value : "";
                 }
                 if (onWidgetChanged) {
                     return onWidgetChanged.apply(this, arguments);
