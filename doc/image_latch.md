@@ -2,6 +2,8 @@
 
 ## Overview
 
+![Latent Latch UI](img/image_latch_node.png)
+
 Image Latch is a ComfyUI node acting as a savepoint/checkpoint mechanism specifically designed for image data. It optimizes workflows by stopping upstream execution if it already has a saved image for the given execution path.
 
 ## How it works
