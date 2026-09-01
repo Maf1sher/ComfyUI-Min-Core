@@ -1,4 +1,4 @@
-﻿import { app } from "/scripts/app.js";
+import { app } from "/scripts/app.js";
 import { ComfyWidgets } from "/scripts/widgets.js";
 import "./comfy-theme-colors.js";
 import { createModuleManager } from "./modules/index.js";
@@ -1023,15 +1023,92 @@ class OpenPosePanel {
 		if (this.container) {
 			this.container.setAttribute("tabindex", "-1");
 			this.container.style.outline = "none";
-			this.container.addEventListener("keydown", keyHandler, true);
+			
+			// Create a hidden input to sink keyboard events so ComfyUI ignores them
+			this.keyboardSink = document.createElement("input");
+			this.keyboardSink.id = "ope-keyboard-sink";
+			this.keyboardSink.style.cssText = "position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; top:0; left:0;";
+			this.keyboardSink.setAttribute("tabindex", "-1");
+			this.container.appendChild(this.keyboardSink);
 		}
+
+		// Aggressively enforce focus on the hidden sink to absolutely guarantee ComfyUI ignores Ctrl+Z.
+		// If ComfyUI uses a capture listener registered before ours, it will check document.activeElement before we can stop it.
+		this._focusSinkInterval = setInterval(() => {
+			if (this._disposed || !this.keyboardSink) return;
+			const targetTag = (document.activeElement?.tagName || "").toLowerCase();
+			if (targetTag !== "input" && targetTag !== "textarea" && targetTag !== "select" && !document.activeElement?.isContentEditable) {
+				if (document.activeElement !== this.keyboardSink) {
+					this.keyboardSink.focus({ preventScroll: true });
+				}
+			}
+		}, 50);
+		// Bind to window to reliably intercept shortcuts (e.g. Ctrl+Z) even if focus escapes the container
+		window.addEventListener("keydown", keyHandler, true);
+		
+		const keyUpHandler = (e) => {
+			if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "y")) {
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+				try { Object.defineProperty(e, 'ctrlKey', { get: () => false }); } catch(err){}
+				try { Object.defineProperty(e, 'metaKey', { get: () => false }); } catch(err){}
+				try { Object.defineProperty(e, 'key', { get: () => "" }); } catch(err){}
+			}
+		};
+		window.addEventListener("keyup", keyUpHandler, true);
+
+		// Monkey-patch ComfyUI global undo/shortcuts to guarantee they don't fire in the background
+		this._originalAppUndo = null;
+		this._originalAppRedo = null;
+		this._originalGraphUndo = null;
+		this._originalGraphRedo = null;
+		this._originalProcessKey = null;
+
+		if (typeof app !== "undefined") {
+			if (app.undo) { this._originalAppUndo = app.undo; app.undo = () => {}; }
+			if (app.redo) { this._originalAppRedo = app.redo; app.redo = () => {}; }
+			if (app.graph) {
+				if (app.graph.undo) { this._originalGraphUndo = app.graph.undo; app.graph.undo = () => {}; }
+				if (app.graph.redo) { this._originalGraphRedo = app.graph.redo; app.graph.redo = () => {}; }
+			}
+			if (app.canvas && app.canvas.processKey) {
+				this._originalProcessKey = app.canvas.processKey;
+				app.canvas.processKey = () => { return false; };
+			}
+		}
+
 		// Track if changes were confirmed
 		this.confirmed = false;
 
 		this.panel.onClose = () => {
 			this._disposed = true;
+			window.removeEventListener("keydown", keyHandler, true);
+			window.removeEventListener("keyup", keyUpHandler, true);
+			if (this._focusSinkInterval) {
+				clearInterval(this._focusSinkInterval);
+				this._focusSinkInterval = null;
+			}
+			
+			if (this.keyboardSink && this.keyboardSink.parentNode) {
+				this.keyboardSink.parentNode.removeChild(this.keyboardSink);
+				this.keyboardSink = null;
+			}
+			
+			// Restore ComfyUI global undo/shortcuts
+			if (typeof app !== "undefined") {
+				if (this._originalAppUndo) app.undo = this._originalAppUndo;
+				if (this._originalAppRedo) app.redo = this._originalAppRedo;
+				if (app.graph) {
+					if (this._originalGraphUndo) app.graph.undo = this._originalGraphUndo;
+					if (this._originalGraphRedo) app.graph.redo = this._originalGraphRedo;
+				}
+				if (this._originalProcessKey && app.canvas) {
+					app.canvas.processKey = this._originalProcessKey;
+				}
+			}
+
 			if (this.container) {
-				this.container.removeEventListener("keydown", keyHandler, true);
+				// Cleanup any other container-specific things if needed in future
 			}
 			this.renderer?.cancelHandEditMode?.();
 			this.stopPanelDrag();
@@ -1955,6 +2032,16 @@ class OpenPosePanel {
 
 	confirmAndClose() {
 		this.renderer?.cancelHandEditMode?.();
+		
+		// If ComfyUI's global Ctrl+Z triggered, the node might have been recreated.
+		// Fetch the active node from the graph to ensure we save to the live instance.
+		if (typeof app !== "undefined" && app.graph) {
+			const liveNode = app.graph.getNodeById(this.node.id);
+			if (liveNode) {
+				this.node = liveNode;
+			}
+		}
+
 		// Enable committing to node, save changes, and mark as confirmed
 		this.allowCommitToNode = true;
 		this.saveToNode(true);
@@ -1988,6 +2075,14 @@ class OpenPosePanel {
 	}
 
 	cancelChanges() {
+		// If ComfyUI's global Ctrl+Z triggered, the node might have been recreated.
+		if (typeof app !== "undefined" && app.graph) {
+			const liveNode = app.graph.getNodeById(this.node.id);
+			if (liveNode) {
+				this.node = liveNode;
+			}
+		}
+
 		// Restore the original pose from the deep-cloned snapshot
 		// This ensures that all edits made during the session are discarded
 		if (!this.node.properties) {
@@ -2011,7 +2106,7 @@ class OpenPosePanel {
 	onKeyDown(e) {
 		// Global keyboard handler that routes to tab-specific shortcut handlers
 		const tagName = (e.target?.tagName || "").toLowerCase();
-		if (tagName === "input" || tagName === "textarea" || tagName === "select" || e.target?.isContentEditable) {
+		if ((tagName === "input" && e.target?.id !== "ope-keyboard-sink") || tagName === "textarea" || tagName === "select" || e.target?.isContentEditable) {
 			return;
 		}
 		// Global shortcuts

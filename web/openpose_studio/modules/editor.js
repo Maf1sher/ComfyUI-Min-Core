@@ -1,4 +1,4 @@
-﻿import { COCO_KEYPOINTS, getFormat, getFormatForPose, isFormatEditAllowed } from "../formats/index.js";
+import { COCO_KEYPOINTS, getFormat, getFormatForPose, isFormatEditAllowed } from "../formats/index.js";
 import { t } from "./i18n.js";
 import { UiIcons } from "../ui-icons.js";
 import {
@@ -888,7 +888,11 @@ addPose(keypoints = undefined, faceKeypoints = null, handLeftKeypoints = null, h
 				this.undo();
 			}
 			e.preventDefault();
+			e.stopPropagation();
 			e.stopImmediatePropagation();
+			try { Object.defineProperty(e, 'ctrlKey', { get: () => false }); } catch(err){}
+			try { Object.defineProperty(e, 'metaKey', { get: () => false }); } catch(err){}
+			try { Object.defineProperty(e, 'key', { get: () => "" }); } catch(err){}
 			return;
 		}
 		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
