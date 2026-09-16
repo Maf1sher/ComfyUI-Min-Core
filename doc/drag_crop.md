@@ -17,6 +17,12 @@ This node is a port of the excellent [ComfyUI-Olm-DragCrop](https://github.com/o
 
 (Other internal inputs are hidden and used by the UI to track the crop area).
 
+## UI Controls
+
+- `aspect_ratio`: Enter a ratio such as `16:9` or `0.5`.
+- `Aspect Ratio Lock`: Keep the crop selection at the entered ratio while dragging.
+- `Set Ratio from Crop`: Replace the ratio with the current crop selection ratio.
+
 ## Outputs
 
 - `IMAGE`: The cropped image tensor.

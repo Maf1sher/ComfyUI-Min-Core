@@ -99,7 +99,7 @@ app.registerExtension({
     }
 
     function createWidgets(node) {
-      node.addWidget(
+      const snapWidget = node.addWidget(
         "combo",
         TEXTCONTENT.snapToWidget,
         "none",
@@ -131,6 +131,16 @@ app.registerExtension({
         );
       }
 
+      if (existingAspectWidget) {
+        // Keep the serialized widget order used by workflows created before this input was in the schema.
+        const aspectIndex = node.widgets.indexOf(existingAspectWidget);
+        const snapIndex = node.widgets.indexOf(snapWidget);
+        if (aspectIndex >= 0 && snapIndex >= 0 && aspectIndex < snapIndex) {
+          node.widgets.splice(aspectIndex, 1);
+          node.widgets.splice(snapIndex, 0, existingAspectWidget);
+        }
+      }
+
       node.addWidget(
         "toggle",
         TEXTCONTENT.aspectRatioLockWidget,
@@ -152,7 +162,7 @@ app.registerExtension({
               node.properties.dragStart,
               node.properties.dragEnd
             );
-            const ratioWidget = getWidget(node, "Aspect Ratio");
+            const ratioWidget = getWidget(node, TEXTCONTENT.aspectRatioWidget);
             if (ratioWidget && aspectRatio !== null) {
               ratioWidget.value = aspectRatio;
               node.properties.aspectRatioString = aspectRatio;

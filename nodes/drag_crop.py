@@ -26,6 +26,7 @@ class DragCrop(io.ComfyNode):
             has_intermediate_output=True,
             inputs=[
                 io.String.Input("drawing_version", default="init", socketless=True),
+                io.String.Input("aspect_ratio", default="", socketless=True),
                 io.Image.Input("image"),
                 io.Int.Input("crop_left", default=0, min=0, max=8192, socketless=True),
                 io.Int.Input("crop_right", default=0, min=0, max=8192, socketless=True),
@@ -49,6 +50,7 @@ class DragCrop(io.ComfyNode):
     def execute(
         cls,
         drawing_version: str,
+        aspect_ratio: str,
         image: torch.Tensor,
         crop_left: int,
         crop_right: int,
