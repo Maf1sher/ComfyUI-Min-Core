@@ -10,6 +10,7 @@ from .latent_latch import LatentLatch
 from .mask_painter_latch import MaskPainterLatch
 from .openpose_studio import MinCore_OpenPoseStudio, MinCore_ShowString
 from .drag_crop import DragCrop, CropInfoInterpreter
+from .sdxl_unique_tags import MinCore_UniqueSDXLTags
 
 NODE_CLASS_LIST = [
     ImageLatch,
@@ -19,4 +20,5 @@ NODE_CLASS_LIST = [
     MinCore_ShowString,
     DragCrop,
     CropInfoInterpreter,
+    MinCore_UniqueSDXLTags,
 ]
