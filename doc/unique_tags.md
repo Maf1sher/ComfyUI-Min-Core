@@ -10,6 +10,7 @@
 
 - **tag_0, tag_1, ...**: Dynamic text inputs. Each input can contain multiple tags.
 - **separator**: Text used to split tags and join the output. The default is `,`.
+- **append_separator**: When enabled, adds the selected separator after the last output tag. Disabled by default.
 
 The node provides up to 100 dynamic tag inputs. ComfyUI adds inputs as they are connected or used.
 
@@ -35,6 +36,12 @@ Output:
 
 ```text
 portrait,blue eyes,detailed hair
+```
+
+With `append_separator` enabled, the output is:
+
+```text
+portrait,blue eyes,detailed hair,
 ```
 
 An empty separator is invalid.

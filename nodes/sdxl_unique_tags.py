@@ -31,6 +31,11 @@ class MinCore_UniqueSDXLTags(io.ComfyNode):
                     multiline=False,
                     tooltip="Separator used to split and join tags.",
                 ),
+                io.Boolean.Input(
+                    "append_separator",
+                    default=False,
+                    tooltip="Add the separator after the last tag.",
+                ),
             ],
             outputs=[
                 io.String.Output(
@@ -41,7 +46,12 @@ class MinCore_UniqueSDXLTags(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, tags: io.Autogrow.Type, separator: str) -> io.NodeOutput:
+    def execute(
+        cls,
+        tags: io.Autogrow.Type,
+        separator: str,
+        append_separator: bool,
+    ) -> io.NodeOutput:
         if not separator:
             raise ValueError("Separator must not be empty.")
 
@@ -54,4 +64,8 @@ class MinCore_UniqueSDXLTags(io.ComfyNode):
                     seen.add(tag)
                     unique_tags.append(tag)
 
-        return io.NodeOutput(separator.join(unique_tags))
+        output = separator.join(unique_tags)
+        if append_separator and output:
+            output += separator
+
+        return io.NodeOutput(output)
