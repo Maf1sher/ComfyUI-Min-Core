@@ -132,11 +132,33 @@ function renderGalleryRecords(state) {
     });
 }
 
+function openPreviewLightbox(state) {
+    const lightbox = state.root.querySelector('[data-role="preview-lightbox"]');
+    if (!lightbox || state.previewExpanded) return;
+    state.previewReturnFocus = document.activeElement;
+    state.previewExpanded = true;
+    state.root.querySelector('[data-action="expand-preview"]').setAttribute("aria-expanded", "true");
+    lightbox.hidden = false;
+    resizePreviewCanvas(state);
+    lightbox.querySelector('[data-action="close-preview"]').focus({ preventScroll: true });
+}
+
+function closePreviewLightbox(state) {
+    const lightbox = state.root.querySelector('[data-role="preview-lightbox"]');
+    if (!lightbox || !state.previewExpanded) return;
+    state.previewExpanded = false;
+    state.root.querySelector('[data-action="expand-preview"]').setAttribute("aria-expanded", "false");
+    lightbox.hidden = true;
+    const returnFocus = state.previewReturnFocus;
+    state.previewReturnFocus = null;
+    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+}
+
 function applyPanelLayout(panel) {
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1280;
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
     const margin = viewportWidth <= 900 ? 12 : 28;
-    const width = Math.max(0, Math.min(viewportWidth - margin * 2, 1600));
+    const width = Math.max(0, Math.min(viewportWidth - margin * 2, 1700));
     const height = Math.max(0, viewportHeight - margin * 2);
     const left = Math.max(0, Math.floor((viewportWidth - width) / 2));
     // Match the OpenPose Studio shell: LiteGraph/ComfyUI styles can otherwise
@@ -256,6 +278,8 @@ function openGallery(node) {
         viewMode: getStoredViewMode(),
         previewImages: [],
         previewLayers: [],
+        previewExpanded: false,
+        previewReturnFocus: null,
         thumbnailObserver: null,
         themeCleanup,
         restoreFocus,
@@ -321,6 +345,12 @@ function openGallery(node) {
     root.querySelector('[data-action="new-collection"]').addEventListener("click", () => createCollection(state));
     root.querySelector('[data-action="save-current"]').addEventListener("click", () => saveCurrent(state));
     root.querySelector('[data-action="use-record"]').addEventListener("click", () => useSelectedRecord(state));
+    root.querySelector('[data-action="expand-preview"]').addEventListener("click", () => openPreviewLightbox(state));
+    const previewLightbox = root.querySelector('[data-role="preview-lightbox"]');
+    previewLightbox.querySelector('[data-action="close-preview"]').addEventListener("click", () => closePreviewLightbox(state));
+    previewLightbox.addEventListener("click", (event) => {
+        if (event.target === previewLightbox) closePreviewLightbox(state);
+    });
     root.querySelector('[data-action="view-mode"]').addEventListener("click", () => {
         const index = GALLERY_VIEW_MODES.indexOf(state.viewMode);
         setGalleryViewMode(state, GALLERY_VIEW_MODES[(index + 1) % GALLERY_VIEW_MODES.length]);
@@ -344,6 +374,11 @@ function openGallery(node) {
     state.keydownHandler = (event) => {
         if (!panel.contains(document.activeElement) || event.defaultPrevented || state.closing) return;
         if (event.key === "Escape") {
+            if (state.previewExpanded) {
+                event.preventDefault();
+                closePreviewLightbox(state);
+                return;
+            }
             const search = state.root.querySelector('[data-role="search"]');
             if (event.target === search && search.value) {
                 search.value = "";
@@ -356,7 +391,10 @@ function openGallery(node) {
             return;
         }
         if (event.key !== "Tab") return;
-        const focusable = Array.from(panel.querySelectorAll(
+        const focusScope = state.previewExpanded
+            ? state.root.querySelector('[data-role="preview-lightbox"]')
+            : panel;
+        const focusable = Array.from(focusScope.querySelectorAll(
             'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]',
         )).filter((element) => !element.hidden && element.getClientRects().length > 0);
         if (!focusable.length) {

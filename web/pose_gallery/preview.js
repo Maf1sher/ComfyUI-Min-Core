@@ -121,6 +121,17 @@ export function resizePreviewCanvas(state) {
         canvas.width = width;
         canvas.height = height;
     }
+    if (state.previewExpanded) {
+        const expanded = state.root.querySelector('[data-role="expanded-preview"]');
+        if (expanded) {
+            const expandedWidth = Math.max(1, Math.round(expanded.clientWidth || 1));
+            const expandedHeight = Math.max(1, Math.round(expanded.clientHeight || 1));
+            if (expanded.width !== expandedWidth || expanded.height !== expandedHeight) {
+                expanded.width = expandedWidth;
+                expanded.height = expandedHeight;
+            }
+        }
+    }
     renderPreview(state);
 }
 
@@ -132,9 +143,18 @@ function containRect(canvas, image) {
 }
 
 function renderPreview(state) {
-    const canvas = state.root.querySelector('[data-role="preview"]');
+    const canvases = [state.root.querySelector('[data-role="preview"]')];
+    if (state.previewExpanded) {
+        canvases.push(state.root.querySelector('[data-role="expanded-preview"]'));
+    }
+    for (const canvas of canvases) renderPreviewToCanvas(state, canvas);
+}
+
+function renderPreviewToCanvas(state, canvas) {
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
     context.clearRect(0, 0, canvas.width, canvas.height);
     const imageLayer = state.previewLayers.find((layer) => layer.type === "image" && layer.image);
     const poseLayer = state.previewLayers.find((layer) => layer.type === "pose" && layer.image);

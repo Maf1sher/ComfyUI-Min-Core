@@ -11,6 +11,7 @@ export function buildGalleryHtml(headingId) {
                 <div class="openpose-sidebar-card">
                     <div class="openpose-preset-preview-frame mcore-pg-preview-wrap">
                         <canvas class="openpose-preset-preview openpose-gallery-selected-preview" data-role="preview" width="320" height="220" aria-label="Selected record preview"></canvas>
+                        <button class="openpose-btn mcore-pg-preview-expand" data-action="expand-preview" type="button" aria-label="Expand preview" aria-expanded="false" title="Expand preview">⤢</button>
                     </div>
                     <div class="mcore-pg-layer-controls" data-role="layer-controls"></div>
                     <button class="openpose-btn openpose-apply-btn openpose-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
@@ -59,6 +60,10 @@ export function buildGalleryHtml(headingId) {
                     </div>
                 </div>
             </main>
+            <div class="mcore-pg-preview-lightbox" data-role="preview-lightbox" role="dialog" aria-modal="true" aria-label="Expanded preview" hidden>
+                <canvas class="mcore-pg-expanded-preview" data-role="expanded-preview" aria-label="Expanded selected record preview"></canvas>
+                <button class="openpose-btn mcore-pg-preview-lightbox-close" data-action="close-preview" type="button">Close preview</button>
+            </div>
         </div>
     `;
 }
