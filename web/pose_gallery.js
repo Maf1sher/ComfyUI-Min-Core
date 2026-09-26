@@ -1,5 +1,6 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
+import "./openpose_studio/comfy-theme-colors.js";
 import { setupGalleryOverlayStyles } from "./openpose_studio/modules/gallery.js";
 
 const NODE_TYPE = "MinCore_PoseGallery";
@@ -27,32 +28,218 @@ function installStyles() {
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
-        .mcore-pg-gallery.openpose-gallery-overlay{position:relative;display:flex;flex:1 1 auto;width:100%;height:100%;min-width:0;min-height:0;box-sizing:border-box}
-        .mcore-pg-gallery .openpose-gallery-sidebar{--ope-openpose-sidebar-width:300px;--ope-openpose-sidebar-min-width:230px}
-        .mcore-pg-gallery .openpose-gallery-main{display:flex;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden}
-        .mcore-pg-gallery .openpose-gallery-card{display:flex;min-width:0;min-height:0}
-        .mcore-pg-gallery .openpose-gallery-wrapper{min-width:0;min-height:0}
-        .mcore-pg-gallery .openpose-sidebar-card{width:100%;height:100%;min-height:0;box-sizing:border-box}
-        .mcore-pg-gallery .openpose-gallery-details{flex:1 1 auto}
-        .mcore-pg-preview-wrap{position:relative;flex:0 0 auto;width:100%;overflow:hidden}
-        .mcore-pg-preview-wrap .openpose-gallery-selected-preview{width:100%;height:220px;object-fit:contain}
-        .mcore-pg-layer-controls{display:flex;flex-wrap:wrap;gap:5px;max-height:96px;overflow-y:auto}
-        .mcore-pg-layer-option{display:inline-flex;align-items:center;gap:5px;padding:4px 6px;border:1px solid var(--openpose-border);border-radius:4px;color:var(--openpose-text-muted);font:11px Arial,sans-serif;cursor:pointer}
-        .mcore-pg-layer-option input{margin:0;accent-color:var(--openpose-primary-bg)}
-        .mcore-pg-details-tags{white-space:pre-wrap;overflow-wrap:anywhere;text-align:right}
-        .mcore-pg-main-actions{flex-wrap:wrap}
-        .mcore-pg-collection{max-width:150px}
-        .mcore-pg-record-count{font-size:10px;font-weight:600;padding:3px 8px;border-radius:3px;background:var(--openpose-input-bg);border:1px solid var(--openpose-border);color:var(--openpose-text-muted);white-space:nowrap}
-        .mcore-pg-node-button{width:100%;padding:8px 12px;border:1px solid var(--openpose-border);border-radius:4px;background:var(--openpose-btn-bg);color:var(--openpose-text);font:13px Arial,sans-serif;cursor:pointer}
-        .mcore-pg-node-button:hover{background:var(--openpose-btn-hover-bg)}
-        .mcore-pg-gallery .openpose-gallery-content{padding:0 2px 8px}
-        .mcore-pg-gallery .openpose-gallery-item.is-selected{background:var(--openpose-gallery-selection-bg)!important;outline:2px solid var(--openpose-primary-bg);outline-offset:-2px}
-        .mcore-pg-gallery .openpose-gallery-item canvas{object-fit:contain}
-        .mcore-pg-empty{grid-column:1/-1;padding:24px 16px;color:var(--openpose-text-muted);font:12px Arial,sans-serif;text-align:center}
-        @media(max-width:900px){.mcore-pg-gallery .openpose-gallery-sidebar{--ope-openpose-sidebar-width:250px;--ope-openpose-sidebar-min-width:200px}.mcore-pg-main-actions{gap:4px!important}.mcore-pg-collection{max-width:110px}}
-        @media(max-width:680px){.mcore-pg-gallery.openpose-gallery-overlay{flex-direction:column;overflow:auto}.mcore-pg-gallery .openpose-gallery-sidebar{width:100%;height:auto;max-height:46%;padding:8px 10px}.mcore-pg-gallery .openpose-sidebar-card{display:grid;grid-template-columns:minmax(120px,35%) minmax(0,1fr);gap:8px}.mcore-pg-preview-wrap{grid-row:span 2}.mcore-pg-preview-wrap .openpose-gallery-selected-preview{height:150px}.mcore-pg-gallery .openpose-gallery-details{margin:0;padding:0;border:0}.mcore-pg-gallery .openpose-gallery-main{padding:6px!important}.mcore-pg-gallery .openpose-gallery-note-row{flex-direction:column}.mcore-pg-gallery .openpose-gallery-actions{margin-left:0;flex-wrap:wrap}.mcore-pg-gallery .openpose-gallery-search{order:10;width:100%}}
+        .mcore-pg-gallery.openpose-gallery-overlay {
+            position: relative;
+            display: flex;
+            flex: 1 1 auto;
+            width: 100%;
+            height: 100%;
+            min-width: 0;
+            min-height: 0;
+            box-sizing: border-box;
+            color: var(--openpose-text);
+            font-family: Inter, "Segoe UI", Arial, sans-serif;
+        }
+        .mcore-pg-gallery *, .mcore-pg-gallery *::before, .mcore-pg-gallery *::after { box-sizing: border-box; }
+        .mcore-pg-gallery .openpose-gallery-sidebar { --ope-openpose-sidebar-width: 310px; --ope-openpose-sidebar-min-width: 250px; }
+        .mcore-pg-gallery .openpose-gallery-main { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; padding: 14px 14px 14px 6px !important; }
+        .mcore-pg-gallery .openpose-gallery-card { display: flex; min-width: 0; min-height: 0; }
+        .mcore-pg-gallery .openpose-gallery-wrapper { min-width: 0; min-height: 0; }
+        .mcore-pg-gallery .openpose-sidebar-card { width: 100%; height: 100%; min-height: 0; box-sizing: border-box; }
+        .mcore-pg-gallery .openpose-gallery-details { flex: 1 1 auto; }
+        .mcore-pg-gallery .openpose-gallery-header { padding-bottom: 14px !important; }
+        .mcore-pg-gallery .mcore-pg-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 2px 2px 16px; }
+        .mcore-pg-gallery .mcore-pg-heading-copy { min-width: 0; }
+        .mcore-pg-gallery .mcore-pg-eyebrow { margin: 0 0 5px; color: var(--openpose-primary-bg); font-size: 10px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+        .mcore-pg-gallery .mcore-pg-heading { margin: 0; color: var(--openpose-text); font-size: clamp(20px, 2vw, 25px); font-weight: 700; letter-spacing: -.035em; line-height: 1.15; }
+        .mcore-pg-gallery .mcore-pg-subtitle { margin: 6px 0 0; color: var(--openpose-text-muted); font-size: 12px; line-height: 1.45; }
+        .mcore-pg-gallery .mcore-pg-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid color-mix(in srgb, var(--openpose-border) 55%, transparent); border-radius: 11px; background: color-mix(in srgb, var(--openpose-panel-bg) 60%, transparent); }
+        .mcore-pg-gallery .mcore-pg-toolbar-group { display: flex; align-items: center; gap: 7px; min-width: 0; }
+        .mcore-pg-gallery .mcore-pg-library-tools { flex: 0 1 auto; }
+        .mcore-pg-gallery .mcore-pg-browse-tools { flex: 1 1 400px; justify-content: flex-end; }
+        .mcore-pg-gallery .mcore-pg-gallery-header-ctrl { height: 34px !important; min-height: 34px !important; max-height: 34px !important; border-radius: 8px !important; font-size: 12px !important; }
+        .mcore-pg-gallery .openpose-gallery-main .openpose-btn { padding: 0 12px !important; border: 1px solid color-mix(in srgb, var(--openpose-border) 75%, transparent) !important; border-radius: 8px !important; background: var(--openpose-btn-bg) !important; color: var(--openpose-text) !important; font: 600 12px/1 Inter, "Segoe UI", Arial, sans-serif !important; transition: background 140ms ease, border-color 140ms ease, transform 140ms ease !important; }
+        .mcore-pg-gallery .openpose-gallery-main .openpose-btn:hover:not(:disabled) { background: var(--openpose-btn-hover-bg) !important; border-color: color-mix(in srgb, var(--openpose-primary-bg) 55%, var(--openpose-border)) !important; transform: translateY(-1px); }
+        .mcore-pg-gallery .mcore-pg-collection { max-width: 190px; min-width: 140px; }
+        .mcore-pg-gallery .mcore-pg-search { flex: 1 1 210px; width: min(260px, 100%) !important; min-width: 150px; }
+        .mcore-pg-gallery .openpose-gallery-search-input { height: 34px !important; padding-left: 12px !important; border-radius: 8px !important; font: 12px Inter, "Segoe UI", Arial, sans-serif !important; }
+        .mcore-pg-gallery .openpose-gallery-search-input:focus { outline: none; border-color: var(--openpose-primary-bg) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--openpose-primary-bg) 20%, transparent); }
+        .mcore-pg-gallery .openpose-gallery-stats-badge { height: 30px !important; min-height: 30px !important; max-height: 30px !important; padding: 0 10px !important; border: 1px solid color-mix(in srgb, var(--openpose-border) 55%, transparent) !important; border-radius: 999px !important; background: color-mix(in srgb, var(--openpose-input-bg) 75%, transparent) !important; font: 600 10px Inter, "Segoe UI", Arial, sans-serif !important; }
+        .mcore-pg-gallery .mcore-pg-close { flex: 0 0 auto; min-width: 34px; padding: 0 10px !important; }
+        .mcore-pg-gallery .mcore-pg-view { white-space: nowrap; }
+        .mcore-pg-gallery .openpose-gallery-content { gap: 0 !important; padding: 14px 2px 12px !important; scrollbar-gutter: stable; }
+        .mcore-pg-gallery .openpose-gallery-section { gap: 10px !important; margin-bottom: 24px !important; }
+        .mcore-pg-gallery .openpose-gallery-title { padding: 0 2px 2px !important; color: var(--openpose-text) !important; font-size: 14px !important; font-weight: 700 !important; letter-spacing: -.01em; }
+        .mcore-pg-gallery .mcore-pg-record-count { display: inline-flex; align-items: center; padding: 4px 9px; border: 1px solid color-mix(in srgb, var(--openpose-border) 55%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--openpose-input-bg) 80%, transparent); color: var(--openpose-text-muted); font: 600 10px Inter, "Segoe UI", Arial, sans-serif; }
+        .mcore-pg-gallery .openpose-gallery-carousel { grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)) !important; gap: 14px !important; padding: 2px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
+        .mcore-pg-gallery .openpose-gallery-item { display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: 0 !important; width: 100% !important; min-width: 0 !important; aspect-ratio: auto !important; overflow: hidden !important; padding: 8px !important; border: 1px solid color-mix(in srgb, var(--openpose-border) 58%, transparent) !important; border-radius: 12px !important; background: var(--openpose-input-bg) !important; box-shadow: 0 2px 8px rgba(0,0,0,.08) !important; text-align: left; transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease !important; }
+        .mcore-pg-gallery .openpose-gallery-item:hover { border-color: color-mix(in srgb, var(--openpose-primary-bg) 65%, var(--openpose-border)) !important; box-shadow: 0 8px 20px rgba(0,0,0,.18) !important; transform: translateY(-2px); }
+        .mcore-pg-gallery .openpose-gallery-item:focus-visible { outline: 2px solid var(--openpose-primary-bg) !important; outline-offset: 2px; }
+        .mcore-pg-gallery .openpose-gallery-item.is-selected { border-color: var(--openpose-primary-bg) !important; background: color-mix(in srgb, var(--openpose-primary-bg) 10%, var(--openpose-input-bg)) !important; box-shadow: inset 0 0 0 1px var(--openpose-primary-bg), 0 6px 16px rgba(0,0,0,.14) !important; outline: none !important; }
+        .mcore-pg-gallery .mcore-pg-card-image { position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid color-mix(in srgb, var(--openpose-canvas-border) 72%, transparent); border-radius: 8px; background: var(--openpose-canvas-bg); }
+        .mcore-pg-gallery .openpose-gallery-item canvas { display: block !important; width: 100% !important; height: 100% !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; object-fit: contain; }
+        .mcore-pg-gallery .mcore-pg-mask-badge { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; gap: 5px; max-width: calc(100% - 16px); padding: 5px 8px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; background: rgba(15,18,22,.76); color: #fff; font-size: 10px; font-weight: 650; line-height: 1; box-shadow: 0 2px 8px rgba(0,0,0,.2); backdrop-filter: blur(8px); }
+        .mcore-pg-gallery .mcore-pg-mask-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #62d7bd; box-shadow: 0 0 0 2px rgba(98,215,189,.2); }
+        .mcore-pg-gallery .openpose-gallery-item-title { position: static !important; display: block !important; width: 100%; margin: 10px 1px 0; padding: 0 !important; color: var(--openpose-text) !important; font-size: 13px !important; font-weight: 650; line-height: 1.35; text-align: left !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mcore-pg-gallery .openpose-gallery-item-meta { display: grid !important; grid-template-columns: minmax(0,1fr) auto; gap: 5px 8px !important; min-width: 0; margin: 5px 1px 1px; }
+        .mcore-pg-gallery .openpose-gallery-item-meta-name { display: none !important; }
+        .mcore-pg-gallery .openpose-gallery-item-meta-size, .mcore-pg-gallery .openpose-gallery-item-meta-people { overflow: hidden; color: var(--openpose-text-muted) !important; font-size: 10px !important; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+        .mcore-pg-gallery .openpose-gallery-item-meta-people { grid-column: 2; grid-row: 1; }
+        .mcore-pg-gallery .openpose-gallery-item-meta-kp { grid-column: 1 / -1; display: -webkit-box !important; overflow: hidden; color: var(--openpose-text-muted) !important; font-size: 10px !important; line-height: 1.4; white-space: normal !important; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        .mcore-pg-gallery .mcore-pg-empty-state { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 240px; padding: 32px 20px; border: 1px dashed color-mix(in srgb, var(--openpose-border) 70%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--openpose-panel-bg) 52%, transparent); color: var(--openpose-text-muted); text-align: center; }
+        .mcore-pg-gallery .mcore-pg-empty-icon { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 13px; border: 1px solid color-mix(in srgb, var(--openpose-primary-bg) 35%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--openpose-primary-bg) 13%, transparent); color: var(--openpose-primary-bg); font-size: 23px; }
+        .mcore-pg-gallery .mcore-pg-empty-title { margin: 0; color: var(--openpose-text); font-size: 15px; font-weight: 650; }
+        .mcore-pg-gallery .mcore-pg-empty-copy { max-width: 360px; margin: 7px 0 0; font-size: 12px; line-height: 1.55; }
+        .mcore-pg-gallery .mcore-pg-preview-wrap { position: relative; flex: 0 0 auto; width: 100%; overflow: hidden; }
+        .mcore-pg-gallery .mcore-pg-preview-wrap .openpose-gallery-selected-preview { width: 100%; height: 220px; object-fit: contain; border: 1px solid var(--openpose-canvas-border); border-radius: 10px; background: var(--openpose-canvas-bg); box-shadow: 0 6px 18px rgba(0,0,0,.14); }
+        .mcore-pg-gallery .openpose-gallery-sidebar .openpose-sidebar-card { gap: 11px; padding: 14px; border: 1px solid color-mix(in srgb, var(--openpose-border) 45%, transparent); border-radius: 12px; }
+        .mcore-pg-gallery .mcore-pg-layer-controls { display: flex; flex-wrap: wrap; gap: 6px; max-height: 88px; overflow-y: auto; }
+        .mcore-pg-gallery .mcore-pg-layer-option { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid color-mix(in srgb, var(--openpose-border) 65%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--openpose-input-bg) 84%, transparent); color: var(--openpose-text-muted); font: 550 11px Inter, "Segoe UI", Arial, sans-serif; cursor: pointer; transition: border-color 130ms ease, background 130ms ease, color 130ms ease; }
+        .mcore-pg-gallery .mcore-pg-layer-option:hover { border-color: color-mix(in srgb, var(--openpose-primary-bg) 65%, var(--openpose-border)); color: var(--openpose-text); }
+        .mcore-pg-gallery .mcore-pg-layer-option:has(input:checked) { border-color: color-mix(in srgb, var(--openpose-primary-bg) 60%, transparent); background: color-mix(in srgb, var(--openpose-primary-bg) 13%, var(--openpose-input-bg)); color: var(--openpose-text); }
+        .mcore-pg-gallery .mcore-pg-layer-option input { width: 12px; height: 12px; margin: 0; accent-color: var(--openpose-primary-bg); }
+        .mcore-pg-gallery .openpose-gallery-insert-btn { min-height: 40px; border: 0 !important; border-radius: 9px !important; background: var(--openpose-primary-bg) !important; color: var(--openpose-primary-text) !important; font-size: 12px !important; font-weight: 700 !important; box-shadow: 0 4px 12px color-mix(in srgb, var(--openpose-primary-bg) 24%, transparent); }
+        .mcore-pg-gallery .openpose-gallery-insert-btn:hover:not(:disabled) { background: var(--openpose-primary-hover-bg) !important; box-shadow: 0 6px 16px color-mix(in srgb, var(--openpose-primary-bg) 32%, transparent); }
+        .mcore-pg-gallery .openpose-gallery-insert-btn:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
+        .mcore-pg-gallery .openpose-gallery-details { min-height: 0; overflow-y: auto; margin-top: 2px; padding: 13px 2px 0; border-top: 1px solid color-mix(in srgb, var(--openpose-border) 65%, transparent); color: var(--openpose-text); font-family: Inter, "Segoe UI", Arial, sans-serif; }
+        .mcore-pg-gallery .openpose-gallery-details-empty { padding: 5px 2px; color: var(--openpose-text-muted); font-size: 11px; line-height: 1.5; }
+        .mcore-pg-gallery .mcore-pg-details-kicker { margin-bottom: 7px; color: var(--openpose-text-muted); font-size: 9px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+        .mcore-pg-gallery .openpose-gallery-details-name { margin-bottom: 9px; color: var(--openpose-text); font-size: 15px; font-weight: 700; letter-spacing: -.015em; line-height: 1.35; overflow-wrap: anywhere; }
+        .mcore-pg-gallery .openpose-gallery-details-row { display: grid; grid-template-columns: minmax(76px,.75fr) minmax(0,1.25fr); gap: 10px; padding: 7px 2px; border-top: 1px solid color-mix(in srgb, var(--openpose-border) 42%, transparent); font-size: 10px; line-height: 1.45; }
+        .mcore-pg-gallery .openpose-gallery-details-row span { color: var(--openpose-text-muted); }
+        .mcore-pg-gallery .openpose-gallery-details-row strong { min-width: 0; color: var(--openpose-text); font-size: 10px; font-weight: 550; text-align: right; overflow-wrap: anywhere; }
+        .mcore-pg-gallery .mcore-pg-details-tags { white-space: pre-wrap; overflow-wrap: anywhere; text-align: right; }
+        .mcore-pg-gallery .openpose-gallery-details-content[hidden], .mcore-pg-gallery .openpose-gallery-details-empty[hidden] { display: none; }
+        .mcore-pg-gallery .mcore-pg-node-button { width: 100%; padding: 9px 12px; border: 1px solid var(--openpose-border); border-radius: 8px; background: var(--openpose-btn-bg); color: var(--openpose-text); font: 600 13px Inter, "Segoe UI", Arial, sans-serif; cursor: pointer; transition: background 140ms ease, border-color 140ms ease; }
+        .mcore-pg-gallery .mcore-pg-node-button:hover { background: var(--openpose-btn-hover-bg); border-color: var(--openpose-primary-bg); }
+        @media (max-width: 1100px) {
+            .mcore-pg-gallery .openpose-gallery-sidebar { --ope-openpose-sidebar-width: 280px; --ope-openpose-sidebar-min-width: 230px; }
+            .mcore-pg-gallery .mcore-pg-toolbar { align-items: stretch; flex-direction: column; }
+            .mcore-pg-gallery .mcore-pg-toolbar-group { width: 100%; }
+            .mcore-pg-gallery .mcore-pg-browse-tools { justify-content: flex-start; }
+            .mcore-pg-gallery .mcore-pg-search { flex: 1 1 auto; }
+        }
+        @media (max-width: 900px) {
+            .mcore-pg-gallery .openpose-gallery-sidebar { --ope-openpose-sidebar-width: 250px; --ope-openpose-sidebar-min-width: 210px; }
+            .mcore-pg-gallery .openpose-gallery-main { padding: 8px 8px 8px 4px !important; }
+            .mcore-pg-gallery .openpose-gallery-card { padding: 12px !important; }
+            .mcore-pg-gallery .openpose-gallery-carousel { grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)) !important; gap: 10px !important; }
+        }
+        @media (max-width: 680px) {
+            .mcore-pg-gallery.openpose-gallery-overlay { flex-direction: column; overflow: auto; }
+            .mcore-pg-gallery .openpose-gallery-sidebar { width: 100% !important; min-width: 0 !important; height: auto; max-height: 48%; overflow-y: auto; padding: 8px 10px; }
+            .mcore-pg-gallery .openpose-gallery-sidebar .openpose-sidebar-card { display: grid; grid-template-columns: minmax(112px, 34%) minmax(0, 1fr); height: auto; min-height: 0; flex: 0 0 auto; gap: 8px !important; padding: 10px !important; }
+            .mcore-pg-gallery .mcore-pg-preview-wrap { grid-row: span 2; }
+            .mcore-pg-gallery .mcore-pg-preview-wrap .openpose-gallery-selected-preview { height: 140px; }
+            .mcore-pg-gallery .openpose-gallery-details { max-height: 88px; margin: 0; padding: 0; border: 0; }
+            .mcore-pg-gallery .openpose-gallery-main { min-height: 260px; padding: 4px !important; }
+            .mcore-pg-gallery .openpose-gallery-card { padding: 10px !important; }
+            .mcore-pg-gallery .mcore-pg-heading-row { padding-bottom: 10px; }
+            .mcore-pg-gallery .mcore-pg-toolbar-group { align-items: stretch; flex-wrap: wrap; }
+            .mcore-pg-gallery .mcore-pg-collection { flex: 1 1 100%; max-width: none; }
+            .mcore-pg-gallery .mcore-pg-search { order: 0; flex: 1 1 100%; width: 100% !important; }
+            .mcore-pg-gallery .mcore-pg-browse-tools { display: grid; grid-template-columns: minmax(0,1fr) auto auto; }
+            .mcore-pg-gallery .openpose-gallery-carousel { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; gap: 8px !important; }
+        }
+        @media (max-width: 430px) {
+            .mcore-pg-gallery .mcore-pg-subtitle { max-width: 230px; font-size: 11px; }
+            .mcore-pg-gallery .mcore-pg-toolbar { padding: 8px; }
+            .mcore-pg-gallery .mcore-pg-library-tools { display: grid; grid-template-columns: minmax(0,1fr) auto; }
+            .mcore-pg-gallery .mcore-pg-library-tools [data-action="save-current"] { grid-column: 1 / -1; }
+            .mcore-pg-gallery .mcore-pg-close { min-width: 32px; padding: 0 8px !important; }
+            .mcore-pg-gallery .openpose-gallery-carousel { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important; }
+            .mcore-pg-gallery .openpose-gallery-item { padding: 6px !important; }
+        }
+
+        .mcore-pg-gallery .openpose-gallery-content.gallery-view--large .openpose-gallery-carousel { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important; gap: 16px !important; }
+        .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .openpose-gallery-carousel { grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)) !important; gap: 9px !important; }
+        .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .openpose-gallery-item { display: grid !important; grid-template-columns: 94px minmax(0,1fr); grid-template-rows: auto; align-items: center !important; column-gap: 12px !important; padding: 8px !important; }
+        .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .mcore-pg-card-image { grid-column: 1; grid-row: 1; aspect-ratio: 4 / 3; }
+        .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .openpose-gallery-item canvas { width: 100% !important; height: 100% !important; flex: initial !important; }
+        .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .openpose-gallery-item-title { display: none !important; }
+        .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .openpose-gallery-item-meta { grid-column: 2; grid-row: 1; display: grid !important; }
+        .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .openpose-gallery-item-meta-name { display: block !important; grid-column: 1 / -1; color: var(--openpose-text) !important; font-size: 12px !important; font-weight: 650; }
+        .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .openpose-gallery-item-meta-size, .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .openpose-gallery-item-meta-people { font-size: 10px !important; }
+        .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .openpose-gallery-item-meta-kp { font-size: 10px !important; }
     `;
     document.head.appendChild(style);
+}
+
+function isLightThemeColor(color) {
+    const value = String(color || "").trim();
+    let rgb = null;
+    if (/^#[\da-f]{3}$/i.test(value)) {
+        rgb = value.slice(1).split("").map((channel) => parseInt(channel + channel, 16));
+    } else if (/^#[\da-f]{6}$/i.test(value)) {
+        rgb = [1, 3, 5].map((index) => parseInt(value.slice(index, index + 2), 16));
+    } else {
+        const match = value.match(/^rgba?\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)/i);
+        if (match) rgb = match.slice(1, 4).map(Number);
+    }
+    return rgb ? (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255 > 0.58 : false;
+}
+
+function applyGalleryTheme(root, theme = null) {
+    const resolved = theme
+        || window.getComfyTheme?.()
+        || window.ComfyTheme?.getTheme?.()
+        || {
+            isLight: false,
+            background: "#202020",
+            text: "#eee",
+            menuBg: "#303030",
+            menuBgSecondary: "#383838",
+            inputBg: "#222",
+            inputText: "#ddd",
+            border: "#555",
+            error: "#ef4444",
+            contentHover: "#454545",
+            primaryBg: "#2f8cff",
+            primaryHover: "#579cff",
+        };
+    const panel = resolved.menuBg || resolved.background || "#202020";
+    const secondary = resolved.menuBgSecondary || panel;
+    const input = resolved.inputBg || secondary;
+    const text = resolved.text || "#eee";
+    const muted = resolved.inputText || resolved.text || text;
+    const border = resolved.border || "#555";
+    const primary = resolved.primaryBg || resolved.contentHover || border;
+    const tokens = {
+        "--openpose-panel-bg": panel,
+        "--openpose-panel-bg-secondary": secondary,
+        "--openpose-input-bg": input,
+        "--openpose-input-text": muted,
+        "--openpose-text": text,
+        "--openpose-text-muted": muted,
+        "--openpose-border": border,
+        "--openpose-hover-bg": resolved.contentHover || secondary,
+        "--openpose-btn-bg": secondary,
+        "--openpose-btn-hover-bg": resolved.contentHover || secondary,
+        "--openpose-btn-disabled-bg": panel,
+        "--openpose-btn-primary-bg": secondary,
+        "--openpose-btn-primary-hover-bg": resolved.contentHover || secondary,
+        "--openpose-primary-bg": primary,
+        "--openpose-primary-hover-bg": resolved.primaryHover || primary,
+        "--openpose-primary-text": isLightThemeColor(primary) ? "#171717" : "#fff",
+        "--openpose-gallery-selection-bg": `color-mix(in srgb, ${primary} 16%, ${input})`,
+        "--openpose-link": primary,
+        "--openpose-error": resolved.error || "#ef4444",
+        "--openpose-status-info": primary,
+        "--openpose-status-success": resolved.isLight ? "#15803d" : "#86efac",
+        "--openpose-status-warn": resolved.isLight ? "#b45309" : "#facc15",
+        "--openpose-status-error": resolved.error || "#fca5a5",
+        "--openpose-status-neutral": muted,
+        "--openpose-card-radius": "12px",
+        "--openpose-canvas-bg": input,
+        "--openpose-canvas-border": border,
+        "--openpose-canvas-shadow": resolved.isLight
+            ? "0 6px 18px rgba(15,23,42,.10)"
+            : "0 6px 18px rgba(0,0,0,.24)",
+    };
+    const panelElement = root.closest(".ope-openpose-shell-panel");
+    for (const element of [root, panelElement].filter(Boolean)) {
+        for (const [name, value] of Object.entries(tokens)) element.style.setProperty(name, value);
+    }
 }
 
 function readWidget(node, name, fallback = "") {
@@ -107,10 +294,11 @@ function buildGalleryHtml() {
                         <canvas class="openpose-preset-preview openpose-gallery-selected-preview" data-role="preview" width="320" height="220" aria-label="Selected record preview"></canvas>
                     </div>
                     <div class="mcore-pg-layer-controls" data-role="layer-controls"></div>
-                    <button class="openpose-btn openpose-apply-btn openpose-gallery-insert-btn" data-action="use-record" disabled>Use selected record for outputs</button>
+                    <button class="openpose-btn openpose-apply-btn openpose-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
                     <div class="openpose-gallery-details">
                         <div class="openpose-gallery-details-empty" data-role="details-empty">Select a record to inspect its image, pose, masks, and tags.</div>
                         <div class="openpose-gallery-details-content" data-role="details" hidden>
+                            <div class="mcore-pg-details-kicker">Record details</div>
                             <div class="openpose-gallery-details-name" data-detail="name"></div>
                             <div class="openpose-gallery-details-row"><span>Collection</span><strong data-detail="collection"></strong></div>
                             <div class="openpose-gallery-details-row"><span>Saved</span><strong data-detail="created"></strong></div>
@@ -125,18 +313,26 @@ function buildGalleryHtml() {
                 <div class="openpose-overlay-card openpose-gallery-card">
                     <div class="openpose-overlay-content openpose-gallery-wrapper">
                         <div class="openpose-gallery-header">
-                            <div class="openpose-gallery-note-row">
-                                <div class="openpose-gallery-note">Browse saved image, pose, mask, and tag records</div>
-                                <div class="openpose-gallery-actions mcore-pg-main-actions">
+                            <div class="mcore-pg-heading-row">
+                                <div class="mcore-pg-heading-copy">
+                                    <div class="mcore-pg-eyebrow">Min-Core · Library</div>
+                                    <h1 class="mcore-pg-heading">Pose Gallery</h1>
+                                    <p class="mcore-pg-subtitle">Browse saved image, pose, mask, and tag records.</p>
+                                </div>
+                                <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl mcore-pg-close" data-action="close" type="button" title="Close gallery">Close</button>
+                            </div>
+                            <div class="mcore-pg-toolbar">
+                                <div class="mcore-pg-toolbar-group mcore-pg-library-tools">
                                     <select class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl openpose-gallery-collection mcore-pg-collection" data-role="collection" aria-label="Collection"></select>
                                     <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl" data-action="new-collection" type="button">New collection</button>
                                     <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl" data-action="save-current" type="button">Save current inputs</button>
-                                    <div class="openpose-gallery-search">
+                                </div>
+                                <div class="mcore-pg-toolbar-group mcore-pg-browse-tools">
+                                    <div class="openpose-gallery-search mcore-pg-search">
                                         <input class="openpose-gallery-search-input openpose-gallery-header-ctrl" data-role="search" type="search" placeholder="Search records and tags" aria-label="Search records and tags" autocomplete="off" spellcheck="false">
                                     </div>
                                     <span class="openpose-gallery-stats-badge openpose-gallery-header-ctrl" data-role="stats">0 records</span>
-                                    <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl" data-action="view-mode" type="button">View: medium</button>
-                                    <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl" data-action="close" type="button" title="Close gallery">Close</button>
+                                    <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl mcore-pg-view" data-action="view-mode" type="button">View: medium</button>
                                 </div>
                             </div>
                         </div>
@@ -255,6 +451,10 @@ function openGallery(node) {
     root.style.height = "100%";
     root.style.minWidth = "0";
     root.style.minHeight = "0";
+    applyGalleryTheme(root);
+    const themeCleanup = typeof window.watchThemeChanges === "function"
+        ? window.watchThemeChanges((theme) => applyGalleryTheme(root, theme))
+        : null;
     setupGalleryOverlayStyles(root);
     const galleryOverlay = root.querySelector(".mcore-pg-gallery");
     if (galleryOverlay) {
@@ -281,6 +481,7 @@ function openGallery(node) {
         viewMode: getStoredViewMode(),
         previewImages: [],
         previewLayers: [],
+        themeCleanup,
         resizeHandler: null,
         keydownHandler: null,
         closing: false,
@@ -294,6 +495,7 @@ function openGallery(node) {
     const cleanup = () => {
         window.removeEventListener("resize", state.resizeHandler);
         window.removeEventListener("keydown", state.keydownHandler);
+        state.themeCleanup?.();
         backdrop.remove();
         state.previewImages.forEach((image) => { image.onload = null; image.onerror = null; });
         if (node._poseGalleryPanel === state) node._poseGalleryPanel = null;
@@ -460,13 +662,29 @@ function renderRecords(state) {
         item.setAttribute("role", "button");
         item.setAttribute("aria-label", record.name || "Untitled record");
         item.dataset.recordId = record.id;
-        item.classList.toggle("is-selected", state.selectedRecord?.id === record.id);
+        const isSelected = state.selectedRecord?.id === record.id;
+        item.classList.toggle("is-selected", isSelected);
+        item.setAttribute("aria-pressed", String(isSelected));
 
         const canvas = document.createElement("canvas");
-        canvas.width = 180;
-        canvas.height = 180;
+        canvas.className = "mcore-pg-thumbnail";
+        canvas.width = 360;
+        canvas.height = 270;
         canvas.setAttribute("aria-hidden", "true");
         drawRecordThumbnail(canvas, record.id);
+
+        const imageFrame = document.createElement("div");
+        imageFrame.className = "mcore-pg-card-image";
+        imageFrame.appendChild(canvas);
+
+        const maskCount = Number(record.mask_count) || 0;
+        if (maskCount > 0) {
+            const maskBadge = document.createElement("span");
+            maskBadge.className = "mcore-pg-mask-badge";
+            maskBadge.textContent = `${maskCount} mask${maskCount === 1 ? "" : "s"}`;
+            maskBadge.title = maskBadge.textContent;
+            imageFrame.appendChild(maskBadge);
+        }
 
         const title = document.createElement("div");
         title.className = "openpose-gallery-item-title";
@@ -483,12 +701,12 @@ function renderRecords(state) {
         metaSize.textContent = record.created ? new Date(record.created).toLocaleString() : "";
         const metaMasks = document.createElement("div");
         metaMasks.className = "openpose-gallery-item-meta-people";
-        metaMasks.textContent = `${record.mask_count || 0} mask${record.mask_count === 1 ? "" : "s"}`;
+        metaMasks.textContent = `${maskCount} mask${maskCount === 1 ? "" : "s"}`;
         const metaTags = document.createElement("div");
         metaTags.className = "openpose-gallery-item-meta-kp";
         metaTags.textContent = record.general_tags || (record.person_tags || []).filter(Boolean).join(", ") || "No tags";
         meta.append(metaName, metaSize, metaMasks, metaTags);
-        item.append(canvas, title, meta);
+        item.append(imageFrame, title, meta);
 
         item.addEventListener("click", () => selectRecord(state, record.id));
         item.addEventListener("keydown", (event) => {
@@ -501,12 +719,21 @@ function renderRecords(state) {
 
     if (!records.length) {
         const empty = document.createElement("div");
-        empty.className = "openpose-alert openpose-alert-info alert alert-info openpose-gallery-empty";
+        empty.className = "mcore-pg-empty-state";
         empty.setAttribute("role", "status");
-        const body = document.createElement("div");
-        body.className = "openpose-alert-body";
-        body.textContent = state.records.length ? "No records match this search." : "This collection is empty. Save the current inputs to add its first record.";
-        empty.appendChild(body);
+        const icon = document.createElement("span");
+        icon.className = "mcore-pg-empty-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = state.records.length ? "⌕" : "+";
+        const title = document.createElement("h2");
+        title.className = "mcore-pg-empty-title";
+        title.textContent = state.records.length ? "No matching records" : "This collection is empty";
+        const body = document.createElement("p");
+        body.className = "mcore-pg-empty-copy";
+        body.textContent = state.records.length
+            ? "Try another search term or clear your search to see all saved records."
+            : "Save the current inputs to add the first record to this collection.";
+        empty.append(icon, title, body);
         carousel.appendChild(empty);
     }
 
@@ -524,15 +751,46 @@ function normalizeSearch(value) {
 
 function drawRecordThumbnail(canvas, recordId) {
     const image = new Image();
+    const drawUnavailable = () => {
+        const context = canvas.getContext("2d");
+        if (!context) return;
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        const color = getComputedStyle(canvas.closest(".mcore-pg-gallery") || canvas)
+            .getPropertyValue("--openpose-text-muted").trim() || "#999";
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        context.strokeStyle = color;
+        context.globalAlpha = 0.72;
+        context.lineWidth = 2;
+        context.strokeRect(centerX - 17, centerY - 23, 34, 34);
+        context.beginPath();
+        context.moveTo(centerX - 12, centerY + 5);
+        context.lineTo(centerX - 3, centerY - 4);
+        context.lineTo(centerX + 3, centerY + 2);
+        context.lineTo(centerX + 8, centerY - 3);
+        context.lineTo(centerX + 13, centerY + 4);
+        context.stroke();
+        context.globalAlpha = 1;
+        context.fillStyle = color;
+        context.font = "500 12px Inter, Segoe UI, Arial, sans-serif";
+        context.textAlign = "center";
+        context.textBaseline = "top";
+        context.fillText("Preview unavailable", centerX, centerY + 23, canvas.width - 20);
+    };
     image.onload = () => {
         const context = canvas.getContext("2d");
         if (!context) return;
         context.clearRect(0, 0, canvas.width, canvas.height);
+        if (!image.naturalWidth || !image.naturalHeight) {
+            drawUnavailable();
+            return;
+        }
         const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
         const width = image.naturalWidth * scale;
         const height = image.naturalHeight * scale;
         context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
     };
+    image.onerror = drawUnavailable;
     image.src = api.apiURL(`/mincore/pose_gallery/records/${recordId}/assets/image.png`);
 }
 
@@ -541,7 +799,9 @@ async function selectRecord(state, recordId) {
         const record = await jsonRequest(`/mincore/pose_gallery/records/${recordId}`);
         state.selectedRecord = record;
         state.root.querySelectorAll(".openpose-gallery-item").forEach((item) => {
-            item.classList.toggle("is-selected", item.dataset.recordId === recordId);
+            const isSelected = item.dataset.recordId === recordId;
+            item.classList.toggle("is-selected", isSelected);
+            item.setAttribute("aria-pressed", String(isSelected));
         });
         showRecord(state, record);
     } catch (error) {
@@ -694,7 +954,10 @@ function updateRecordDetails(state, record) {
 
 function showCurrentState(state, preview) {
     state.selectedRecord = null;
-    state.root.querySelectorAll(".openpose-gallery-item.is-selected").forEach((item) => item.classList.remove("is-selected"));
+    state.root.querySelectorAll(".openpose-gallery-item.is-selected").forEach((item) => {
+        item.classList.remove("is-selected");
+        item.setAttribute("aria-pressed", "false");
+    });
     setPreviewSource(state, {
         image: preview.image,
         pose: preview.pose,

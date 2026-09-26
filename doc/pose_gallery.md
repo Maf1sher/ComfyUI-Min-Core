@@ -36,6 +36,11 @@ The detail preview layers the source image, rendered pose, and each mask. Image
 and pose are visible by default; masks start hidden. Use the checkboxes to toggle
 layers. General tags and per-person tags are displayed separately.
 
+Saved records are shown as image cards with their name, save date, mask count,
+and tags. The gallery offers medium, large, and compact tile layouts; selecting a
+card opens its layered preview and record details in the side panel. The gallery
+follows the active ComfyUI color theme.
+
 ## Outputs
 
 - **IMAGE** — source image from the selected source.
