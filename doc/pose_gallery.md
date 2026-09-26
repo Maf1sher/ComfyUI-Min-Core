@@ -34,8 +34,10 @@ collection.
 
 The detail preview layers the source image, rendered pose, and each mask. Image
 and pose are visible by default; masks start hidden. Use the checkboxes to toggle
-layers. The side-panel preview uses a square frame. Use its expand button to
-inspect the image in a larger overlay without changing the record list layout.
+layers; their visibility settings remain in effect when switching the preview to
+another image or record while the gallery is open. The side-panel preview uses a
+square frame. Use its expand button to inspect the image in a larger overlay
+without changing the record list layout.
 General tags and per-person tags are displayed separately.
 
 Saved records are shown as image cards with their name, save date, mask count,

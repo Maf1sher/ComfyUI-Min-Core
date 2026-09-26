@@ -126,6 +126,7 @@ function openGallery(node) {
         viewMode: getStoredViewMode(),
         previewImages: [],
         previewLayers: [],
+        previewLayerVisibility: {},
         previewExpanded: false,
         previewReturnFocus: null,
         thumbnailObserver: null,

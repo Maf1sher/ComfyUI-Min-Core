@@ -64,13 +64,26 @@ export function setPreviewSource(state, preview) {
     controls.replaceChildren();
 
     const layers = [
-        { name: "Image", type: "image", url: displayUrl(preview.image), visible: true },
-        { name: "Pose", type: "pose", url: displayUrl(preview.pose), visible: true },
+        {
+            name: "Image",
+            type: "image",
+            url: displayUrl(preview.image),
+            visibilityKey: "image",
+            visible: state.previewLayerVisibility.image ?? true,
+        },
+        {
+            name: "Pose",
+            type: "pose",
+            url: displayUrl(preview.pose),
+            visibilityKey: "pose",
+            visible: state.previewLayerVisibility.pose ?? true,
+        },
         ...(preview.masks || []).map((mask, index) => ({
             name: `Mask ${index + 1}`,
             type: "mask",
             url: displayUrl(mask),
-            visible: false,
+            visibilityKey: `mask:${index}`,
+            visible: state.previewLayerVisibility[`mask:${index}`] ?? false,
             color: MASK_COLORS[index % MASK_COLORS.length],
         })),
     ].filter((layer) => layer.url);
@@ -84,6 +97,7 @@ export function setPreviewSource(state, preview) {
         checkbox.checked = layer.visible;
         checkbox.addEventListener("change", () => {
             layer.visible = checkbox.checked;
+            state.previewLayerVisibility[layer.visibilityKey] = layer.visible;
             renderPreview(state);
         });
         const text = document.createElement("span");
