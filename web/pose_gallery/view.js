@@ -1,0 +1,268 @@
+import { setupGalleryOverlayStyles } from "../openpose_studio/modules/gallery.js";
+import { drawRecordThumbnail } from "./preview.js";
+
+export const GALLERY_VIEW_MODES = ["medium", "large", "tiles"];
+const GALLERY_VIEW_MODE_KEY = "openpose_editor.gallery.viewMode";
+
+export function buildGalleryHtml(headingId) {
+    return `
+        <div class="openpose-overlay openpose-gallery-overlay mcore-pg-gallery" data-overlay="gallery">
+            <aside class="openpose-sidebar openpose-gallery-sidebar">
+                <div class="openpose-sidebar-card">
+                    <div class="openpose-preset-preview-frame mcore-pg-preview-wrap">
+                        <canvas class="openpose-preset-preview openpose-gallery-selected-preview" data-role="preview" width="320" height="220" aria-label="Selected record preview"></canvas>
+                    </div>
+                    <div class="mcore-pg-layer-controls" data-role="layer-controls"></div>
+                    <button class="openpose-btn openpose-apply-btn openpose-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
+                    <div class="openpose-gallery-details">
+                        <div class="openpose-gallery-details-empty" data-role="details-empty">Select a record to inspect its image, pose, masks, and tags.</div>
+                        <div class="openpose-gallery-details-content" data-role="details" hidden>
+                            <div class="mcore-pg-details-kicker">Record details</div>
+                            <div class="openpose-gallery-details-name" data-detail="name"></div>
+                            <div class="openpose-gallery-details-row"><span>Collection</span><strong data-detail="collection"></strong></div>
+                            <div class="openpose-gallery-details-row"><span>Saved</span><strong data-detail="created"></strong></div>
+                            <div class="openpose-gallery-details-row"><span>Masks</span><strong data-detail="masks"></strong></div>
+                            <div class="openpose-gallery-details-row"><span>General tags</span><strong class="mcore-pg-details-tags" data-detail="general-tags"></strong></div>
+                            <div class="openpose-gallery-details-row" data-role="person-tags-row"><span>Person tags</span><strong class="mcore-pg-details-tags" data-detail="person-tags"></strong></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+            <main class="openpose-gallery-main">
+                <div class="openpose-overlay-card openpose-gallery-card">
+                    <div class="openpose-overlay-content openpose-gallery-wrapper">
+                        <div class="openpose-gallery-header">
+                            <div class="mcore-pg-heading-row">
+                                <div class="mcore-pg-heading-copy">
+                                    <div class="mcore-pg-eyebrow">Min-Core · Library</div>
+                                    <h1 class="mcore-pg-heading" id="${headingId}">Pose Gallery</h1>
+                                    <p class="mcore-pg-subtitle">Browse saved image, pose, mask, and tag records.</p>
+                                </div>
+                                <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl mcore-pg-close" data-action="close" type="button" title="Close gallery">Close</button>
+                            </div>
+                            <div class="mcore-pg-toolbar">
+                                <div class="mcore-pg-toolbar-group mcore-pg-library-tools">
+                                    <select class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl openpose-gallery-collection mcore-pg-collection" data-role="collection" aria-label="Collection"></select>
+                                    <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl" data-action="new-collection" type="button">New collection</button>
+                                    <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl" data-action="save-current" type="button">Save current inputs</button>
+                                </div>
+                                <div class="mcore-pg-toolbar-group mcore-pg-browse-tools">
+                                    <div class="openpose-gallery-search mcore-pg-search">
+                                        <input class="openpose-gallery-search-input openpose-gallery-header-ctrl" data-role="search" type="search" placeholder="Search records and tags" aria-label="Search records and tags" autocomplete="off" spellcheck="false">
+                                    </div>
+                                    <span class="openpose-gallery-stats-badge openpose-gallery-header-ctrl" data-role="stats">0 records</span>
+                                    <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl mcore-pg-view" data-action="view-mode" type="button">View: medium</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="openpose-gallery-content gallery-view--medium" data-role="records"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    `;
+}
+
+export function getStoredViewMode() {
+    try {
+        const mode = localStorage.getItem(GALLERY_VIEW_MODE_KEY);
+        return GALLERY_VIEW_MODES.includes(mode) ? mode : "medium";
+    } catch (_error) {
+        return "medium";
+    }
+}
+
+export function setGalleryViewMode(state, mode) {
+    state.viewMode = GALLERY_VIEW_MODES.includes(mode) ? mode : "medium";
+    try {
+        localStorage.setItem(GALLERY_VIEW_MODE_KEY, state.viewMode);
+    } catch (_error) {
+        // The selected layout still works if browser storage is unavailable.
+    }
+    const content = state.root.querySelector('[data-role="records"]');
+    for (const view of GALLERY_VIEW_MODES) content.classList.toggle(`gallery-view--${view}`, view === state.viewMode);
+    const button = state.root.querySelector('[data-action="view-mode"]');
+    if (button) button.textContent = `View: ${state.viewMode}`;
+}
+
+export function createThumbnailObserver(root) {
+    if (typeof IntersectionObserver === "undefined") return null;
+    return new IntersectionObserver((entries, observer) => {
+        for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            observer.unobserve(entry.target);
+            drawRecordThumbnail(entry.target, entry.target.dataset.recordId);
+        }
+    }, {
+        root: root.querySelector('[data-role="records"]'),
+        rootMargin: "240px",
+    });
+}
+
+function normalizeSearch(value) {
+    return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().trim();
+}
+
+function addStatusState(carousel, { titleText, copyText, role = "status", retry }) {
+    const state = document.createElement("div");
+    state.className = "mcore-pg-empty-state mcore-pg-status-state";
+    state.setAttribute("role", role);
+    const title = document.createElement("h2");
+    title.className = "mcore-pg-empty-title";
+    title.textContent = titleText;
+    const copy = document.createElement("p");
+    copy.className = "mcore-pg-empty-copy";
+    copy.textContent = copyText;
+    state.append(title, copy);
+    if (retry) {
+        const button = document.createElement("button");
+        button.className = "openpose-btn mcore-pg-node-button mcore-pg-state-retry";
+        button.type = "button";
+        button.textContent = "Try again";
+        button.addEventListener("click", retry);
+        state.appendChild(button);
+    }
+    carousel.appendChild(state);
+}
+
+export function renderRecords(state, { onSelect, onRetry }) {
+    const container = state.root.querySelector('[data-role="records"]');
+    state.thumbnailObserver?.disconnect();
+    container.replaceChildren();
+    container.setAttribute("aria-busy", String(state.recordsStatus === "loading"));
+    const query = normalizeSearch(state.root.querySelector('[data-role="search"]').value);
+    const records = state.records.filter((record) => (
+        !query || normalizeSearch(`${record.name} ${record.general_tags} ${(record.person_tags || []).join(" ")}`).includes(query)
+    ));
+
+    const collection = state.collections.find((item) => item.id === state.selectedCollection);
+    const section = document.createElement("section");
+    section.className = "openpose-gallery-section";
+    const heading = document.createElement("div");
+    heading.className = "openpose-gallery-title";
+    const headingText = document.createElement("span");
+    headingText.className = "openpose-gallery-title-text";
+    headingText.textContent = collection?.name || "Default";
+    heading.appendChild(headingText);
+    const badge = document.createElement("span");
+    badge.className = "mcore-pg-record-count";
+    badge.textContent = `${records.length} record${records.length === 1 ? "" : "s"}`;
+    heading.appendChild(badge);
+    section.appendChild(heading);
+
+    const carousel = document.createElement("div");
+    carousel.className = "openpose-gallery-carousel";
+    const thumbnails = [];
+    if (state.recordsStatus === "loading") {
+        addStatusState(carousel, { titleText: "Loading records…", copyText: "Please wait while this collection is loaded." });
+    } else if (state.recordsError) {
+        addStatusState(carousel, {
+            titleText: "Could not load records",
+            copyText: state.recordsError,
+            role: "alert",
+            retry: onRetry,
+        });
+    } else {
+        for (const record of records) {
+            const item = document.createElement("div");
+            item.className = "openpose-gallery-item";
+            item.tabIndex = 0;
+            item.setAttribute("role", "button");
+            item.setAttribute("aria-label", record.name || "Untitled record");
+            item.dataset.recordId = record.id;
+            const isSelected = state.selectedRecord?.id === record.id;
+            item.classList.toggle("is-selected", isSelected);
+            item.setAttribute("aria-pressed", String(isSelected));
+
+            const canvas = document.createElement("canvas");
+            canvas.className = "mcore-pg-thumbnail";
+            canvas.width = 360;
+            canvas.height = 270;
+            canvas.dataset.recordId = record.id;
+            canvas.setAttribute("aria-hidden", "true");
+
+            const imageFrame = document.createElement("div");
+            imageFrame.className = "mcore-pg-card-image";
+            imageFrame.appendChild(canvas);
+            thumbnails.push(canvas);
+
+            const maskCount = Number(record.mask_count) || 0;
+            if (maskCount > 0) {
+                const maskBadge = document.createElement("span");
+                maskBadge.className = "mcore-pg-mask-badge";
+                maskBadge.textContent = `${maskCount} mask${maskCount === 1 ? "" : "s"}`;
+                maskBadge.title = maskBadge.textContent;
+                imageFrame.appendChild(maskBadge);
+            }
+
+            const title = document.createElement("div");
+            title.className = "openpose-gallery-item-title";
+            title.textContent = record.name || "Untitled record";
+            title.title = title.textContent;
+
+            const meta = document.createElement("div");
+            meta.className = "openpose-gallery-item-meta";
+            const metaName = document.createElement("div");
+            metaName.className = "openpose-gallery-item-meta-name";
+            metaName.textContent = title.textContent;
+            const metaDate = document.createElement("div");
+            metaDate.className = "openpose-gallery-item-meta-size";
+            metaDate.textContent = record.created ? new Date(record.created).toLocaleString() : "";
+            const metaMasks = document.createElement("div");
+            metaMasks.className = "openpose-gallery-item-meta-people";
+            metaMasks.textContent = `${maskCount} mask${maskCount === 1 ? "" : "s"}`;
+            const metaTags = document.createElement("div");
+            metaTags.className = "openpose-gallery-item-meta-kp";
+            metaTags.textContent = record.general_tags || (record.person_tags || []).filter(Boolean).join(", ") || "No tags";
+            meta.append(metaName, metaDate, metaMasks, metaTags);
+            item.append(imageFrame, title, meta);
+
+            item.addEventListener("click", () => onSelect(record.id));
+            item.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onSelect(record.id);
+            });
+            carousel.appendChild(item);
+        }
+
+        if (!records.length) {
+            const empty = document.createElement("div");
+            empty.className = "mcore-pg-empty-state";
+            empty.setAttribute("role", "status");
+            const icon = document.createElement("span");
+            icon.className = "mcore-pg-empty-icon";
+            icon.setAttribute("aria-hidden", "true");
+            icon.textContent = state.records.length ? "⌕" : "+";
+            const title = document.createElement("h2");
+            title.className = "mcore-pg-empty-title";
+            title.textContent = state.records.length ? "No matching records" : "This collection is empty";
+            const body = document.createElement("p");
+            body.className = "mcore-pg-empty-copy";
+            body.textContent = state.records.length
+                ? "Try another search term or clear your search to see all saved records."
+                : "Save the current inputs to add the first record to this collection.";
+            empty.append(icon, title, body);
+            carousel.appendChild(empty);
+        }
+    }
+
+    section.appendChild(carousel);
+    container.appendChild(section);
+    setupGalleryOverlayStyles(state.root);
+    setGalleryViewMode(state, state.viewMode);
+    if (state.recordsStatus === "loading") {
+        state.root.querySelector('[data-role="stats"]').textContent = "Loading…";
+    } else if (state.recordsError) {
+        state.root.querySelector('[data-role="stats"]').textContent = "Unavailable";
+    } else {
+        const masks = records.reduce((count, record) => count + (Number(record.mask_count) || 0), 0);
+        state.root.querySelector('[data-role="stats"]').textContent = `${records.length} record${records.length === 1 ? "" : "s"} · ${masks} mask${masks === 1 ? "" : "s"}`;
+    }
+
+    if (state.thumbnailObserver) {
+        thumbnails.forEach((canvas) => state.thumbnailObserver.observe(canvas));
+    } else {
+        thumbnails.forEach((canvas) => drawRecordThumbnail(canvas, canvas.dataset.recordId));
+    }
+}

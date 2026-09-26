@@ -39,7 +39,10 @@ layers. General tags and per-person tags are displayed separately.
 Saved records are shown as image cards with their name, save date, mask count,
 and tags. The gallery offers medium, large, and compact tile layouts; selecting a
 card opens its layered preview and record details in the side panel. The gallery
-follows the active ComfyUI color theme.
+follows the active ComfyUI color theme. When a collection has fewer records than
+fit across the gallery, its cards expand to use the available width.
+Record thumbnails load as they approach the visible area. Collection loading
+shows progress and offers a retry if the request fails.
 
 ## Outputs
 
