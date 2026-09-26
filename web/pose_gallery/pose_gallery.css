@@ -49,7 +49,9 @@
 }
 
 .mcore-pg-gallery .openpose-gallery-wrapper {
+    flex: 1 1 0;
     min-height: 0;
+    min-width: 0;
 }
 
 .mcore-pg-gallery .openpose-sidebar-card {
@@ -228,7 +230,7 @@
 .mcore-pg-gallery .openpose-gallery-carousel {
     width: 100%;
     min-width: 0;
-    grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)) !important;
     gap: 14px !important;
     padding: 2px !important;
     border: 0 !important;
@@ -645,7 +647,7 @@
     }
 
     .mcore-pg-gallery .openpose-gallery-carousel {
-        grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)) !important;
+        grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)) !important;
         gap: 10px !important;
     }
 }
@@ -725,7 +727,7 @@
     }
 
     .mcore-pg-gallery .openpose-gallery-carousel {
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
         gap: 8px !important;
     }
 }
@@ -755,7 +757,7 @@
     }
 
     .mcore-pg-gallery .openpose-gallery-carousel {
-        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
     }
 
     .mcore-pg-gallery .openpose-gallery-item {
@@ -764,12 +766,12 @@
 }
 
 .mcore-pg-gallery .openpose-gallery-content.gallery-view--large .openpose-gallery-carousel {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
     gap: 16px !important;
 }
 
 .mcore-pg-gallery .openpose-gallery-content.gallery-view--tiles .openpose-gallery-carousel {
-    grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)) !important;
     gap: 9px !important;
 }
 
