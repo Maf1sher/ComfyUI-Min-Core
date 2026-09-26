@@ -1,4 +1,3 @@
-import { setupGalleryOverlayStyles } from "../openpose_studio/modules/gallery.js";
 import { drawRecordThumbnail } from "./preview.js";
 
 export const GALLERY_VIEW_MODES = ["medium", "large", "tiles"];
@@ -6,63 +5,63 @@ const GALLERY_VIEW_MODE_KEY = "openpose_editor.gallery.viewMode";
 
 export function buildGalleryHtml(headingId) {
     return `
-        <div class="openpose-overlay openpose-gallery-overlay mcore-pg-gallery" data-overlay="gallery">
-            <aside class="openpose-sidebar openpose-gallery-sidebar">
-                <div class="openpose-sidebar-card">
-                    <div class="openpose-preset-preview-frame mcore-pg-preview-wrap">
-                        <canvas class="openpose-preset-preview openpose-gallery-selected-preview" data-role="preview" width="320" height="220" aria-label="Selected record preview"></canvas>
-                        <button class="openpose-btn mcore-pg-preview-expand" data-action="expand-preview" type="button" aria-label="Expand preview" aria-expanded="false" title="Expand preview">⤢</button>
+        <div class="mcore-pg-gallery" data-overlay="gallery">
+            <aside class="mcore-pg-gallery-sidebar">
+                <div class="mcore-pg-sidebar-card">
+                    <div class="mcore-pg-preview-wrap">
+                        <canvas class="mcore-pg-gallery-selected-preview" data-role="preview" width="320" height="220" aria-label="Selected record preview"></canvas>
+                        <button class="mcore-pg-button mcore-pg-preview-expand" data-action="expand-preview" type="button" aria-label="Expand preview" aria-expanded="false" title="Expand preview">⤢</button>
                     </div>
                     <div class="mcore-pg-layer-controls" data-role="layer-controls"></div>
-                    <button class="openpose-btn openpose-apply-btn openpose-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
-                    <div class="openpose-gallery-details">
-                        <div class="openpose-gallery-details-empty" data-role="details-empty">Select a record to inspect its image, pose, masks, and tags.</div>
-                        <div class="openpose-gallery-details-content" data-role="details" hidden>
+                    <button class="mcore-pg-button mcore-pg-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
+                    <div class="mcore-pg-gallery-details">
+                        <div class="mcore-pg-gallery-details-empty" data-role="details-empty">Select a record to inspect its image, pose, masks, and tags.</div>
+                        <div class="mcore-pg-gallery-details-content" data-role="details" hidden>
                             <div class="mcore-pg-details-kicker">Record details</div>
-                            <div class="openpose-gallery-details-name" data-detail="name"></div>
-                            <div class="openpose-gallery-details-row"><span>Collection</span><strong data-detail="collection"></strong></div>
-                            <div class="openpose-gallery-details-row"><span>Saved</span><strong data-detail="created"></strong></div>
-                            <div class="openpose-gallery-details-row"><span>Masks</span><strong data-detail="masks"></strong></div>
-                            <div class="openpose-gallery-details-row"><span>General tags</span><strong class="mcore-pg-details-tags" data-detail="general-tags"></strong></div>
-                            <div class="openpose-gallery-details-row" data-role="person-tags-row"><span>Person tags</span><strong class="mcore-pg-details-tags" data-detail="person-tags"></strong></div>
+                            <div class="mcore-pg-gallery-details-name" data-detail="name"></div>
+                            <div class="mcore-pg-gallery-details-row"><span>Collection</span><strong data-detail="collection"></strong></div>
+                            <div class="mcore-pg-gallery-details-row"><span>Saved</span><strong data-detail="created"></strong></div>
+                            <div class="mcore-pg-gallery-details-row"><span>Masks</span><strong data-detail="masks"></strong></div>
+                            <div class="mcore-pg-gallery-details-row"><span>General tags</span><strong class="mcore-pg-details-tags" data-detail="general-tags"></strong></div>
+                            <div class="mcore-pg-gallery-details-row" data-role="person-tags-row"><span>Person tags</span><strong class="mcore-pg-details-tags" data-detail="person-tags"></strong></div>
                         </div>
                     </div>
                 </div>
             </aside>
-            <main class="openpose-gallery-main">
-                <div class="openpose-overlay-card openpose-gallery-card">
-                    <div class="openpose-overlay-content openpose-gallery-wrapper">
-                        <div class="openpose-gallery-header">
+            <main class="mcore-pg-gallery-main">
+                <div class="mcore-pg-gallery-card">
+                    <div class="mcore-pg-gallery-wrapper">
+                        <div class="mcore-pg-gallery-header">
                             <div class="mcore-pg-heading-row">
                                 <div class="mcore-pg-heading-copy">
                                     <div class="mcore-pg-eyebrow">Min-Core · Library</div>
                                     <h1 class="mcore-pg-heading" id="${headingId}">Pose Gallery</h1>
                                     <p class="mcore-pg-subtitle">Browse saved image, pose, mask, and tag records.</p>
                                 </div>
-                                <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl mcore-pg-close" data-action="close" type="button" title="Close gallery">Close</button>
+                                <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-close" data-action="close" type="button" title="Close gallery">Close</button>
                             </div>
                             <div class="mcore-pg-toolbar">
                                 <div class="mcore-pg-toolbar-group mcore-pg-library-tools">
-                                    <select class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl openpose-gallery-collection mcore-pg-collection" data-role="collection" aria-label="Collection"></select>
-                                    <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl" data-action="new-collection" type="button">New collection</button>
-                                    <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl" data-action="save-current" type="button">Save current inputs</button>
+                                    <select class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-collection" data-role="collection" aria-label="Collection"></select>
+                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="new-collection" type="button">New collection</button>
+                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="save-current" type="button">Save current inputs</button>
                                 </div>
                                 <div class="mcore-pg-toolbar-group mcore-pg-browse-tools">
-                                    <div class="openpose-gallery-search mcore-pg-search">
-                                        <input class="openpose-gallery-search-input openpose-gallery-header-ctrl" data-role="search" type="search" placeholder="Search records and tags" aria-label="Search records and tags" autocomplete="off" spellcheck="false">
+                                    <div class="mcore-pg-gallery-search mcore-pg-search">
+                                        <input class="mcore-pg-gallery-search-input mcore-pg-gallery-header-ctrl" data-role="search" type="search" placeholder="Search records and tags" aria-label="Search records and tags" autocomplete="off" spellcheck="false">
                                     </div>
-                                    <span class="openpose-gallery-stats-badge openpose-gallery-header-ctrl" data-role="stats">0 records</span>
-                                    <button class="openpose-btn openpose-btn-small openpose-gallery-header-ctrl mcore-pg-view" data-action="view-mode" type="button">View: medium</button>
+                                    <span class="mcore-pg-gallery-stats-badge mcore-pg-gallery-header-ctrl" data-role="stats">0 records</span>
+                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-view" data-action="view-mode" type="button">View: medium</button>
                                 </div>
                             </div>
                         </div>
-                        <div class="openpose-gallery-content gallery-view--medium" data-role="records"></div>
+                        <div class="mcore-pg-gallery-content gallery-view--medium" data-role="records"></div>
                     </div>
                 </div>
             </main>
             <div class="mcore-pg-preview-lightbox" data-role="preview-lightbox" role="dialog" aria-modal="true" aria-label="Expanded preview" hidden>
                 <canvas class="mcore-pg-expanded-preview" data-role="expanded-preview" aria-label="Expanded selected record preview"></canvas>
-                <button class="openpose-btn mcore-pg-preview-lightbox-close" data-action="close-preview" type="button">Close preview</button>
+                <button class="mcore-pg-button mcore-pg-preview-lightbox-close" data-action="close-preview" type="button">Close preview</button>
             </div>
         </div>
     `;
@@ -121,7 +120,7 @@ function addStatusState(carousel, { titleText, copyText, role = "status", retry 
     state.append(title, copy);
     if (retry) {
         const button = document.createElement("button");
-        button.className = "openpose-btn mcore-pg-node-button mcore-pg-state-retry";
+        button.className = "mcore-pg-button mcore-pg-node-button mcore-pg-state-retry";
         button.type = "button";
         button.textContent = "Try again";
         button.addEventListener("click", retry);
@@ -142,11 +141,11 @@ export function renderRecords(state, { onSelect, onRetry }) {
 
     const collection = state.collections.find((item) => item.id === state.selectedCollection);
     const section = document.createElement("section");
-    section.className = "openpose-gallery-section";
+    section.className = "mcore-pg-gallery-section";
     const heading = document.createElement("div");
-    heading.className = "openpose-gallery-title";
+    heading.className = "mcore-pg-gallery-title";
     const headingText = document.createElement("span");
-    headingText.className = "openpose-gallery-title-text";
+    headingText.className = "mcore-pg-gallery-title-text";
     headingText.textContent = collection?.name || "Default";
     heading.appendChild(headingText);
     const badge = document.createElement("span");
@@ -156,7 +155,7 @@ export function renderRecords(state, { onSelect, onRetry }) {
     section.appendChild(heading);
 
     const carousel = document.createElement("div");
-    carousel.className = "openpose-gallery-carousel";
+    carousel.className = "mcore-pg-gallery-carousel";
     const thumbnails = [];
     if (state.recordsStatus === "loading") {
         addStatusState(carousel, { titleText: "Loading records…", copyText: "Please wait while this collection is loaded." });
@@ -170,7 +169,7 @@ export function renderRecords(state, { onSelect, onRetry }) {
     } else {
         for (const record of records) {
             const item = document.createElement("div");
-            item.className = "openpose-gallery-item";
+            item.className = "mcore-pg-gallery-item";
             item.tabIndex = 0;
             item.setAttribute("role", "button");
             item.setAttribute("aria-label", record.name || "Untitled record");
@@ -180,7 +179,6 @@ export function renderRecords(state, { onSelect, onRetry }) {
             item.setAttribute("aria-pressed", String(isSelected));
 
             const canvas = document.createElement("canvas");
-            canvas.className = "mcore-pg-thumbnail";
             canvas.width = 360;
             canvas.height = 270;
             canvas.dataset.recordId = record.id;
@@ -201,23 +199,23 @@ export function renderRecords(state, { onSelect, onRetry }) {
             }
 
             const title = document.createElement("div");
-            title.className = "openpose-gallery-item-title";
+            title.className = "mcore-pg-gallery-item-title";
             title.textContent = record.name || "Untitled record";
             title.title = title.textContent;
 
             const meta = document.createElement("div");
-            meta.className = "openpose-gallery-item-meta";
+            meta.className = "mcore-pg-gallery-item-meta";
             const metaName = document.createElement("div");
-            metaName.className = "openpose-gallery-item-meta-name";
+            metaName.className = "mcore-pg-gallery-item-meta-name";
             metaName.textContent = title.textContent;
             const metaDate = document.createElement("div");
-            metaDate.className = "openpose-gallery-item-meta-size";
+            metaDate.className = "mcore-pg-gallery-item-meta-size";
             metaDate.textContent = record.created ? new Date(record.created).toLocaleString() : "";
             const metaMasks = document.createElement("div");
-            metaMasks.className = "openpose-gallery-item-meta-people";
+            metaMasks.className = "mcore-pg-gallery-item-meta-people";
             metaMasks.textContent = `${maskCount} mask${maskCount === 1 ? "" : "s"}`;
             const metaTags = document.createElement("div");
-            metaTags.className = "openpose-gallery-item-meta-kp";
+            metaTags.className = "mcore-pg-gallery-item-meta-kp";
             metaTags.textContent = record.general_tags || (record.person_tags || []).filter(Boolean).join(", ") || "No tags";
             meta.append(metaName, metaDate, metaMasks, metaTags);
             item.append(imageFrame, title, meta);
@@ -254,7 +252,6 @@ export function renderRecords(state, { onSelect, onRetry }) {
 
     section.appendChild(carousel);
     container.appendChild(section);
-    setupGalleryOverlayStyles(state.root);
     setGalleryViewMode(state, state.viewMode);
     if (state.recordsStatus === "loading") {
         state.root.querySelector('[data-role="stats"]').textContent = "Loading…";
