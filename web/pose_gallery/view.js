@@ -97,30 +97,45 @@ export function buildGalleryHtml(headingId) {
                                 </div>
                             </div>
                             <div class="mcore-pg-toolbar">
-                                <div class="mcore-pg-toolbar-group mcore-pg-library-tools">
-                                    <select class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-collection" data-role="collection" aria-label="Collection"></select>
-                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="new-collection" type="button">New collection</button>
-                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-delete-collection" data-action="delete-collection" type="button" disabled>Delete collection</button>
-                                </div>
-                                <div class="mcore-pg-toolbar-group mcore-pg-browse-tools">
-                                    <div class="mcore-pg-gallery-search mcore-pg-search">
-                                        <input class="mcore-pg-gallery-search-input mcore-pg-gallery-header-ctrl" data-role="search" type="search" placeholder="Search records and tags" aria-label="Search records and tags" autocomplete="off" spellcheck="false">
+                                <div class="mcore-pg-toolbar-primary-row">
+                                    <div class="mcore-pg-toolbar-group mcore-pg-library-tools" role="group" aria-label="Collection">
+                                        <span class="mcore-pg-toolbar-group-label">Collection</span>
+                                        <div class="mcore-pg-toolbar-controls mcore-pg-library-controls">
+                                            <select class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-collection" data-role="collection" aria-label="Collection"></select>
+                                            <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="new-collection" type="button">New collection</button>
+                                            <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-delete-collection" data-action="delete-collection" type="button" disabled>Delete collection</button>
+                                        </div>
                                     </div>
-                                    <span class="mcore-pg-gallery-stats-badge mcore-pg-gallery-header-ctrl" data-role="stats">0 records</span>
-                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-view" data-action="view-mode" type="button">View: medium</button>
+                                    <div class="mcore-pg-toolbar-group mcore-pg-browse-tools" role="group" aria-label="Browse records">
+                                        <span class="mcore-pg-toolbar-group-label">Browse</span>
+                                        <div class="mcore-pg-toolbar-controls mcore-pg-browse-controls">
+                                            <div class="mcore-pg-gallery-search mcore-pg-search">
+                                                <input class="mcore-pg-gallery-search-input mcore-pg-gallery-header-ctrl" data-role="search" type="search" placeholder="Search records and tags" aria-label="Search records and tags" autocomplete="off" spellcheck="false">
+                                            </div>
+                                            <span class="mcore-pg-gallery-stats-badge mcore-pg-gallery-header-ctrl" data-role="stats">0 records</span>
+                                            <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-view" data-action="view-mode" type="button">View: medium</button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="mcore-pg-toolbar-group mcore-pg-selected-record-tools" role="group" aria-label="Record selection and actions">
-                                    <span class="mcore-pg-selection-count" data-role="selection-count" aria-live="polite" hidden></span>
-                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="select-page" type="button" title="Select or deselect records on the current page" disabled>Select page</button>
-                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="clear-selection" type="button" hidden>Clear selection</button>
-                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="move-record" type="button" disabled>Move to collection</button>
-                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-delete-record" data-action="delete-record" type="button" disabled>Delete record</button>
-                                </div>
-                                <div class="mcore-pg-toolbar-group mcore-pg-record-layer-tools" role="group" aria-label="Layers shown on record cards">
-                                    <span class="mcore-pg-record-layer-heading">Card layers</span>
-                                    <label class="mcore-pg-layer-option"><input data-role="record-layer" data-layer="image" type="checkbox"><span>Image</span></label>
-                                    <label class="mcore-pg-layer-option"><input data-role="record-layer" data-layer="pose" type="checkbox"><span>Pose</span></label>
-                                    <label class="mcore-pg-layer-option"><input data-role="record-layer" data-layer="masks" type="checkbox"><span>Masks</span></label>
+                                <div class="mcore-pg-toolbar-secondary-row">
+                                    <div class="mcore-pg-toolbar-group mcore-pg-selected-record-tools" role="group" aria-label="Record selection and actions">
+                                        <span class="mcore-pg-toolbar-group-label">Manage records</span>
+                                        <div class="mcore-pg-toolbar-controls mcore-pg-record-controls">
+                                            <span class="mcore-pg-selection-count" data-role="selection-count" aria-live="polite" hidden></span>
+                                            <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="select-page" type="button" title="Select or deselect records on the current page" disabled>Select page</button>
+                                            <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="clear-selection" type="button" hidden>Clear selection</button>
+                                            <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="move-record" type="button" disabled>Move to collection</button>
+                                            <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-delete-record" data-action="delete-record" type="button" disabled>Delete record</button>
+                                        </div>
+                                    </div>
+                                    <div class="mcore-pg-toolbar-group mcore-pg-record-layer-tools" role="group" aria-label="Layers shown on record cards">
+                                        <span class="mcore-pg-toolbar-group-label">Card layers</span>
+                                        <div class="mcore-pg-toolbar-controls mcore-pg-record-layer-controls">
+                                            <label class="mcore-pg-layer-option"><input data-role="record-layer" data-layer="image" type="checkbox"><span>Image</span></label>
+                                            <label class="mcore-pg-layer-option"><input data-role="record-layer" data-layer="pose" type="checkbox"><span>Pose</span></label>
+                                            <label class="mcore-pg-layer-option"><input data-role="record-layer" data-layer="masks" type="checkbox"><span>Masks</span></label>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
