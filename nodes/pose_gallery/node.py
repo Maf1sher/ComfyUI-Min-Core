@@ -7,10 +7,10 @@ import torch
 from comfy_api.latest import io
 from comfy_api.latest._io import _UIOutput
 
-from .openpose_studio import get_runtime_render_style_fingerprint, render_pose_image
-from . import pose_gallery_store as gallery_store
-from . import pose_gallery_api as gallery_api
-from . import pose_gallery_preview as gallery_preview
+from ..openpose_studio import get_runtime_render_style_fingerprint, render_pose_image
+from . import api as gallery_api
+from . import preview as gallery_preview
+from . import store as gallery_store
 
 
 def _ordered_values(values, prefix: str, include_empty: bool = True) -> list:

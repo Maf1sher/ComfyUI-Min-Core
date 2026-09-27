@@ -12,7 +12,13 @@ ComfyUI-Min-Core/
 ├── doc/                 # Detailed documentation for each node
 ├── nodes/               # Node implementations
 │   ├── __init__.py      # NODE_CLASS_LIST registry
-│   └── latent_latch.py
+│   ├── latent_latch.py  # Single-file node
+│   └── pose_gallery/    # Multi-file node package
+│       ├── __init__.py
+│       ├── node.py
+│       ├── api.py
+│       ├── store.py
+│       └── preview.py
 ├── web/                 # Frontend JS extensions
 ├── pyproject.toml
 ├── requirements.txt
@@ -52,7 +58,9 @@ class MyNode(io.ComfyNode):
 
 ## Adding a Node
 
-1. Create `nodes/my_node.py` with the node class.
+1. Create `nodes/my_node.py` for a simple single-file node. For a node with
+   multiple related backend modules, create a package at `nodes/my_node/` and
+   export its node class from `nodes/my_node/__init__.py`.
 2. In `nodes/__init__.py`, import the class and append it to `NODE_CLASS_LIST`.
 3. Create a dedicated documentation file in `doc/my_node.md`.
 4. Add the node to the "Available Nodes" list in `README.md` with a link to its documentation.
@@ -64,7 +72,7 @@ class MyNode(io.ComfyNode):
 - Category for every node: `"Min-Core"`.
 - `node_id` must be globally unique in ComfyUI — prefix with `MinCore_` when
   there is any risk of collision with another pack.
-- Keep each node file focused on one node or one tightly related group.
+- Keep each node file or package focused on one node or one tightly related group.
 - Do not add dependencies to `requirements.txt` unless the node cannot work
   without them. Prefer what ComfyUI already bundles (torch, PIL, numpy).
 - When using an external library, always add it to `requirements.txt` if it is

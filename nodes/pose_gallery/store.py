@@ -13,7 +13,7 @@ import torch
 from PIL import Image as PILImage
 
 import folder_paths
-from .openpose_studio import render_pose_image
+from ..openpose_studio import render_pose_image
 
 
 __all__ = [

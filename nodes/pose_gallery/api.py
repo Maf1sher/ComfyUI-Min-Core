@@ -15,8 +15,8 @@ from PIL import Image as PILImage
 from server import PromptServer
 
 import folder_paths
-from . import pose_gallery_store as gallery_store
-from .openpose_studio import render_pose_image
+from ..openpose_studio import render_pose_image
+from . import store as gallery_store
 
 
 __all__ = [
