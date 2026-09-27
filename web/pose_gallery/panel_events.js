@@ -41,6 +41,14 @@ export function applyPanelLayout(panel) {
     panel.style.setProperty("top", `${margin}px`, "important");
 }
 
+function getSelectedActionRecords(state) {
+    if (state.selectedRecordIds.size) {
+        return Array.from(state.selectedRecordIds, (id) => state.records.find((record) => String(record.id) === id))
+            .filter(Boolean);
+    }
+    return state.selectedRecord ? [state.selectedRecord] : [];
+}
+
 /** @param {GalleryPanelState} state @param {GalleryPanelActions} actions */
 export function bindPanelEvents(state, actions) {
     const { node, panel, backdrop, root } = state;
@@ -48,8 +56,8 @@ export function bindPanelEvents(state, actions) {
         renderGalleryRecords,
         useSelectedRecord,
         toggleCurrentInputs,
-        deleteSelectedRecord,
-        moveSelectedRecord,
+        deleteSelectedRecords,
+        moveSelectedRecords,
         deleteCollection,
         showCurrentState,
         loadRecords,
@@ -71,16 +79,38 @@ export function bindPanelEvents(state, actions) {
     });
     root.querySelector('[data-action="delete-record"]').addEventListener("click", () => {
         if (!state.selectionPending && state.deletingRecordId == null && state.movingRecordId == null
-            && state.deletingCollectionId == null && !state.loadingCurrentInputs && !state.savingRecord && !state.saveQueued) {
-            openDeleteConfirmation(state, state.selectedRecord);
+            && state.bulkOperation == null && state.deletingCollectionId == null
+            && !state.loadingCurrentInputs && !state.savingRecord && !state.saveQueued) {
+            openDeleteConfirmation(state, getSelectedActionRecords(state));
         }
     });
     root.querySelector('[data-action="move-record"]').addEventListener("click", () => {
         if (!state.selectionPending && state.deletingRecordId == null && state.movingRecordId == null
-            && state.deletingCollectionId == null && !state.loadingCurrentInputs
+            && state.bulkOperation == null && state.deletingCollectionId == null && !state.loadingCurrentInputs
             && !state.savingRecord && !state.saveQueued) {
-            openMoveDialog(state, state.selectedRecord);
+            openMoveDialog(state, getSelectedActionRecords(state));
         }
+    });
+    root.querySelector('[data-action="select-page"]').addEventListener("click", () => {
+        const checkboxes = Array.from(root.querySelectorAll('[data-role="record-select"]'));
+        if (!checkboxes.length) return;
+        const shouldSelect = !checkboxes.every((checkbox) => checkbox.checked);
+        for (const checkbox of checkboxes) {
+            const recordId = String(checkbox.dataset.recordId);
+            if (shouldSelect) state.selectedRecordIds.add(recordId);
+            else state.selectedRecordIds.delete(recordId);
+        }
+        renderGalleryRecords(state);
+        const selectPageButton = root.querySelector('[data-action="select-page"]');
+        if (!selectPageButton.disabled) selectPageButton.focus({ preventScroll: true });
+        else root.querySelector('[data-role="search"]').focus({ preventScroll: true });
+    });
+    root.querySelector('[data-action="clear-selection"]').addEventListener("click", () => {
+        state.selectedRecordIds.clear();
+        renderGalleryRecords(state);
+        const selectPageButton = root.querySelector('[data-action="select-page"]');
+        if (!selectPageButton.disabled) selectPageButton.focus({ preventScroll: true });
+        else root.querySelector('[data-role="search"]').focus({ preventScroll: true });
     });
     root.querySelector('[data-action="delete-collection"]').addEventListener("click", () => {
         if (state.selectedCollection === "default" || state.deletingCollectionId != null) return;
@@ -110,11 +140,11 @@ export function bindPanelEvents(state, actions) {
     const deleteConfirmation = root.querySelector('[data-role="delete-confirmation"]');
     deleteConfirmation.querySelector('[data-action="cancel-delete"]').addEventListener("click", () => closeDeleteConfirmation(state));
     deleteConfirmation.querySelector('[data-action="confirm-delete"]').addEventListener("click", () => {
-        const record = state.pendingDeleteRecord;
-        if (!record) return;
+        const records = state.pendingDeleteRecords;
+        if (!records.length) return;
         closeDeleteConfirmation(state, false);
         root.querySelector('[data-role="search"]').focus({ preventScroll: true });
-        void deleteSelectedRecord(state, record);
+        void deleteSelectedRecords(state, records);
     });
     deleteConfirmation.addEventListener("click", (event) => {
         if (event.target === deleteConfirmation) closeDeleteConfirmation(state);
@@ -122,7 +152,7 @@ export function bindPanelEvents(state, actions) {
     const moveDialog = root.querySelector('[data-role="move-dialog"]');
     moveDialog.querySelector('[data-action="cancel-move"]').addEventListener("click", () => closeMoveDialog(state));
     moveDialog.querySelector('[data-action="confirm-move"]').addEventListener("click", () => {
-        submitMoveDialog(state, moveSelectedRecord);
+        submitMoveDialog(state, moveSelectedRecords);
     });
     moveDialog.addEventListener("click", (event) => {
         if (event.target === moveDialog) closeMoveDialog(state);
@@ -172,6 +202,7 @@ export function bindPanelEvents(state, actions) {
         state.selectedCollection = event.target.value;
         state.selectionRequestId += 1;
         state.selectedRecord = null;
+        state.selectedRecordIds.clear();
         root.querySelector('[data-action="use-record"]').disabled = true;
         setWidget(node, "gallery_collection_id", state.selectedCollection);
         if (node._poseGalleryState) showCurrentState(state, node._poseGalleryState);

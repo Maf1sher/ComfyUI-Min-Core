@@ -62,7 +62,9 @@ function renderGalleryRecords(state) {
             }
             focusTarget?.focus({ preventScroll: true });
         },
+        onSelectionChange: () => updateRecordActions(state),
     });
+    updateRecordActions(state);
 }
 
 /**
@@ -87,10 +89,12 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         recordsRequestId: 0,
         collectionsRequestId: 0,
         selectionRequestId: 0,
+        selectedRecordIds: new Set(),
         selectionPending: false,
         selectionTargetRecordId: null,
         deletingRecordId: null,
         movingRecordId: null,
+        bulkOperation: null,
         deletingCollectionId: null,
         usingRecord: false,
         retryCollections: false,
@@ -112,10 +116,10 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         settingsReturnFocus: null,
         deleteConfirmOpen: false,
         deleteConfirmReturnFocus: null,
-        pendingDeleteRecord: null,
+        pendingDeleteRecords: [],
         moveDialogOpen: false,
         moveDialogReturnFocus: null,
-        pendingMoveRecord: null,
+        pendingMoveRecords: [],
         deleteCollectionConfirmOpen: false,
         deleteCollectionConfirmReturnFocus: null,
         pendingDeleteCollection: null,
@@ -220,8 +224,8 @@ function openGallery(node) {
         renderGalleryRecords,
         useSelectedRecord,
         toggleCurrentInputs,
-        deleteSelectedRecord,
-        moveSelectedRecord,
+        deleteSelectedRecords,
+        moveSelectedRecords,
         deleteCollection,
         showCurrentState,
         loadRecords,
@@ -295,6 +299,7 @@ async function createCollection(state, name) {
         state.selectedCollection = collection.id;
         state.selectionRequestId += 1;
         state.selectedRecord = null;
+        state.selectedRecordIds.clear();
         state.root.querySelector('[data-action="use-record"]').disabled = true;
         if (state.node._poseGalleryState) showCurrentState(state, state.node._poseGalleryState);
         else showCurrentState(state, {});
@@ -322,6 +327,10 @@ async function loadRecords(state) {
         const payload = await jsonRequest(`/mincore/pose_gallery/records?${query}`);
         if (requestId !== state.recordsRequestId || collectionId !== state.selectedCollection || state.closing) return false;
         state.records = payload.records || [];
+        const availableRecordIds = new Set(state.records.map((record) => String(record.id)));
+        state.selectedRecordIds = new Set(
+            Array.from(state.selectedRecordIds).filter((recordId) => availableRecordIds.has(recordId)),
+        );
         state.recordsStatus = "ready";
         updateCollectionActions(state);
         renderGalleryRecords(state);
@@ -339,7 +348,7 @@ async function loadRecords(state) {
 
 /** @param {GalleryPanelState} state @param {string} recordId */
 async function selectRecord(state, recordId) {
-    if (state.deletingRecordId === String(recordId) || state.movingRecordId != null) return;
+    if (state.bulkOperation != null || state.deletingRecordId === String(recordId) || state.movingRecordId != null) return;
     const requestId = ++state.selectionRequestId;
     state.selectionPending = true;
     state.selectionTargetRecordId = String(recordId);
@@ -354,7 +363,7 @@ async function selectRecord(state, recordId) {
         state.root.querySelectorAll(".mcore-pg-gallery-item").forEach((item) => {
             const isSelected = String(item.dataset.recordId) === String(recordId);
             item.classList.toggle("is-selected", isSelected);
-            item.setAttribute("aria-pressed", String(isSelected));
+            item.querySelector(".mcore-pg-gallery-item-preview")?.setAttribute("aria-pressed", String(isSelected));
         });
         showRecord(state, record);
     } catch (error) {
@@ -369,15 +378,40 @@ async function selectRecord(state, recordId) {
 /** @param {GalleryPanelState} state */
 function updateRecordActions(state) {
     const busy = state.selectionPending || state.deletingRecordId != null || state.deletingCollectionId != null || state.usingRecord
-        || state.movingRecordId != null || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+        || state.movingRecordId != null || state.bulkOperation != null || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    const selectedCount = state.selectedRecordIds.size;
+    const selectedTargets = selectedCount
+        ? state.records.filter((record) => state.selectedRecordIds.has(String(record.id)))
+        : state.selectedRecord ? [state.selectedRecord] : [];
     state.root.querySelector('[data-action="use-record"]').disabled = !state.selectedRecord || busy;
-    state.root.querySelector('[data-action="delete-record"]').disabled = !state.selectedRecord || busy;
+    const deleteButton = state.root.querySelector('[data-action="delete-record"]');
+    deleteButton.textContent = state.bulkOperation === "delete"
+        ? "Deleting…"
+        : selectedCount ? `Delete ${selectedCount} selected` : "Delete record";
+    deleteButton.disabled = !selectedTargets.length || busy;
     const moveButton = state.root.querySelector('[data-action="move-record"]');
     if (moveButton) {
-        const hasDestination = state.selectedRecord
-            && state.collections.some((collection) => collection.id !== state.selectedRecord.collection_id);
-        moveButton.disabled = !state.selectedRecord || !hasDestination || busy;
+        const sourceCollectionId = selectedTargets[0]?.collection_id;
+        const hasDestination = sourceCollectionId
+            && state.collections.some((collection) => collection.id !== sourceCollectionId);
+        moveButton.textContent = state.bulkOperation === "move"
+            ? "Moving…"
+            : selectedCount ? `Move ${selectedCount} selected` : "Move to collection";
+        moveButton.disabled = !selectedTargets.length || !hasDestination || busy;
     }
+    const countBadge = state.root.querySelector('[data-role="selection-count"]');
+    countBadge.hidden = selectedCount === 0;
+    countBadge.textContent = `${selectedCount} selected`;
+    const clearButton = state.root.querySelector('[data-action="clear-selection"]');
+    clearButton.hidden = selectedCount === 0;
+    clearButton.disabled = busy;
+    const visibleCheckboxes = Array.from(state.root.querySelectorAll('[data-role="record-select"]'));
+    const allVisibleSelected = visibleCheckboxes.length > 0 && visibleCheckboxes.every((checkbox) => checkbox.checked);
+    const selectPageButton = state.root.querySelector('[data-action="select-page"]');
+    selectPageButton.textContent = "Select page";
+    selectPageButton.hidden = allVisibleSelected;
+    selectPageButton.disabled = visibleCheckboxes.length === 0 || busy;
+    visibleCheckboxes.forEach((checkbox) => { checkbox.disabled = busy; });
     updateCollectionActions(state);
 }
 
@@ -385,77 +419,101 @@ function updateRecordActions(state) {
 function updateCollectionActions(state) {
     const button = state.root.querySelector('[data-action="delete-collection"]');
     const busy = state.deletingCollectionId != null || state.deletingRecordId != null || state.usingRecord
-        || state.movingRecordId != null || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+        || state.movingRecordId != null || state.bulkOperation != null
+        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     button.disabled = state.selectedCollection === "default"
         || state.recordsStatus !== "ready"
         || Boolean(state.recordsError)
         || busy;
-    state.root.querySelector('[data-role="collection"]').disabled = state.deletingCollectionId != null || state.movingRecordId != null;
-    state.root.querySelector('[data-action="new-collection"]').disabled = state.deletingCollectionId != null || state.movingRecordId != null;
+    state.root.querySelector('[data-role="collection"]').disabled = state.deletingCollectionId != null
+        || state.movingRecordId != null || state.bulkOperation != null;
+    state.root.querySelector('[data-action="new-collection"]').disabled = state.deletingCollectionId != null
+        || state.movingRecordId != null || state.bulkOperation != null;
     const saveButton = state.root.querySelector('[data-action="save-current"]');
     if (saveButton) {
-        saveButton.disabled = state.deletingCollectionId != null || state.movingRecordId != null
+        saveButton.disabled = state.deletingCollectionId != null || state.movingRecordId != null || state.bulkOperation != null
             || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     }
 }
 
-/** @param {GalleryPanelState} state @param {GalleryRecord} record @param {string} collectionId */
-async function moveSelectedRecord(state, record, collectionId) {
-    if (!record || state.movingRecordId != null || state.deletingRecordId != null || state.deletingCollectionId != null
-        || state.selectionPending || state.usingRecord || state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
-    const recordId = String(record.id);
+/** @param {GalleryPanelState} state @param {import("./pose_gallery/types.js").GalleryRecordSummary[]} records @param {string} collectionId */
+async function moveSelectedRecords(state, records, collectionId) {
+    const recordIds = Array.from(new Set(records.map((record) => String(record.id))));
+    if (!recordIds.length || state.movingRecordId != null || state.deletingRecordId != null || state.bulkOperation != null
+        || state.deletingCollectionId != null || state.selectionPending || state.usingRecord
+        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
     const destination = state.collections.find((collection) => collection.id === collectionId);
-    if (!destination || destination.id === record.collection_id) return;
+    if (!destination || records.every((record) => destination.id === record.collection_id)) return;
 
-    state.movingRecordId = recordId;
+    const previewRecordId = String(state.selectedRecord?.id || "");
+    state.movingRecordId = recordIds[0];
+    state.bulkOperation = "move";
     updateRecordActions(state);
+    let recordIdToSelect = null;
     try {
-        await jsonRequest(`/mincore/pose_gallery/records/${encodeURIComponent(recordId)}`, {
-            method: "PATCH",
+        await jsonRequest("/mincore/pose_gallery/records/batch/move", {
+            method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ collection_id: destination.id }),
+            body: JSON.stringify({ record_ids: recordIds, collection_id: destination.id }),
         });
         if (state.closing) return;
 
         state.selectedCollection = destination.id;
         state.root.querySelector('[data-role="collection"]').value = destination.id;
         setWidget(state.node, "gallery_collection_id", destination.id);
+        state.selectedRecordIds.clear();
         showCurrentState(state, {});
         const loaded = await loadRecords(state);
-        if (loaded && !state.closing) await selectRecord(state, recordId);
-        toast("success", "Pose Gallery", `Moved: ${record.name || "Untitled record"} → ${destination.name}`);
+        if (loaded && !state.closing) {
+            recordIdToSelect = recordIds.includes(previewRecordId) ? previewRecordId : recordIds[0];
+        }
     } catch (error) {
         toast("error", "Pose Gallery", String(error));
     } finally {
-        if (state.movingRecordId === recordId) state.movingRecordId = null;
+        state.movingRecordId = null;
+        state.bulkOperation = null;
         updateRecordActions(state);
+    }
+    if (recordIdToSelect && !state.closing) await selectRecord(state, recordIdToSelect);
+    if (!state.closing && recordIdToSelect) {
+        toast("success", "Pose Gallery", `Moved ${recordIds.length} record${recordIds.length === 1 ? "" : "s"} → ${destination.name}`);
     }
 }
 
-/** @param {GalleryPanelState} state @param {GalleryRecord} record */
-async function deleteSelectedRecord(state, record) {
-    if (!record || state.deletingRecordId != null || state.movingRecordId != null
+/** @param {GalleryPanelState} state @param {import("./pose_gallery/types.js").GalleryRecordSummary[]} records */
+async function deleteSelectedRecords(state, records) {
+    const recordIds = Array.from(new Set(records.map((record) => String(record.id))));
+    if (!recordIds.length || state.deletingRecordId != null || state.movingRecordId != null || state.bulkOperation != null
         || state.deletingCollectionId != null || state.selectionPending || state.usingRecord) return;
-    const recordId = String(record.id);
-    const name = record.name || "Untitled record";
 
-    state.deletingRecordId = recordId;
+    state.deletingRecordId = recordIds[0];
+    state.bulkOperation = "delete";
     updateRecordActions(state);
+    let restoreNodePreview = false;
     try {
-        await jsonRequest(`/mincore/pose_gallery/records/${encodeURIComponent(recordId)}`, { method: "DELETE" });
-        state.records = state.records.filter((item) => String(item.id) !== recordId);
-        if (state.selectionTargetRecordId === recordId) {
+        await jsonRequest("/mincore/pose_gallery/records/batch/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ record_ids: recordIds }),
+        });
+        if (state.closing) return;
+
+        const deletedIds = new Set(recordIds);
+        state.records = state.records.filter((item) => !deletedIds.has(String(item.id)));
+        recordIds.forEach((id) => state.selectedRecordIds.delete(id));
+        if (deletedIds.has(String(state.selectionTargetRecordId))) {
             state.selectionRequestId += 1;
             state.selectionPending = false;
             state.selectionTargetRecordId = null;
         }
 
-        const nodeState = state.node._poseGalleryState;
-        const selectedWasDeleted = String(state.selectedRecord?.id) === recordId;
-        if (nodeState?.source === "gallery" && String(nodeState.record_id) === recordId) {
-            state.node._poseGalleryState = { ...nodeState, source: "inputs", record_id: "" };
+        let nodeState = state.node._poseGalleryState;
+        const selectedWasDeleted = deletedIds.has(String(state.selectedRecord?.id));
+        if (nodeState?.source === "gallery" && deletedIds.has(String(nodeState.record_id))) {
+            nodeState = { ...nodeState, source: "inputs", record_id: "" };
+            state.node._poseGalleryState = nodeState;
         }
-        if (String(readWidget(state.node, "gallery_record_id")) === recordId) {
+        if (deletedIds.has(String(readWidget(state.node, "gallery_record_id")))) {
             setWidget(state.node, "gallery_record_id", "");
             if (readWidget(state.node, "output_source") === "gallery") {
                 setWidget(state.node, "output_source", "inputs");
@@ -466,23 +524,27 @@ async function deleteSelectedRecord(state, record) {
             state.selectionRequestId += 1;
             state.selectionPending = false;
             state.selectedRecord = null;
-            if (state.node._poseGalleryState) showNodeState(state, state.node._poseGalleryState);
-            else showCurrentState(state, {});
+            restoreNodePreview = true;
         }
         renderGalleryRecords(state);
-        toast("success", "Pose Gallery", `Deleted: ${name}`);
+        toast("success", "Pose Gallery", `Deleted ${recordIds.length} record${recordIds.length === 1 ? "" : "s"}`);
     } catch (error) {
         toast("error", "Pose Gallery", String(error));
     } finally {
-        if (state.deletingRecordId === recordId) state.deletingRecordId = null;
+        state.deletingRecordId = null;
+        state.bulkOperation = null;
         updateRecordActions(state);
+    }
+    if (restoreNodePreview && !state.closing) {
+        if (state.node._poseGalleryState) showNodeState(state, state.node._poseGalleryState);
+        else showCurrentState(state, {});
     }
 }
 
 /** @param {GalleryPanelState} state @param {import("./pose_gallery/types.js").GalleryCollection} collection */
 async function deleteCollection(state, collection) {
     if (!collection || collection.id === "default" || state.selectedCollection !== collection.id
-        || state.deletingCollectionId != null || state.recordsStatus !== "ready") return;
+        || state.deletingCollectionId != null || state.bulkOperation != null || state.recordsStatus !== "ready") return;
 
     const collectionId = String(collection.id);
     const nodeState = state.node._poseGalleryState;
@@ -512,6 +574,7 @@ async function deleteCollection(state, collection) {
         }
 
         state.selectedCollection = "default";
+        state.selectedRecordIds.clear();
         state.collections = state.collections.filter((item) => item.id !== collectionId);
         const collectionSelect = state.root.querySelector('[data-role="collection"]');
         Array.from(collectionSelect.options).find((option) => option.value === collectionId)?.remove();
@@ -545,7 +608,7 @@ function showCurrentState(state, preview) {
     updateRecordActions(state);
     state.root.querySelectorAll(".mcore-pg-gallery-item.is-selected").forEach((item) => {
         item.classList.remove("is-selected");
-        item.setAttribute("aria-pressed", "false");
+        item.querySelector(".mcore-pg-gallery-item-preview")?.setAttribute("aria-pressed", "false");
     });
     setPreviewSource(state, {
         image: preview.image,
@@ -579,7 +642,8 @@ function updateCurrentInputsButton(state) {
     const button = state.root.querySelector('[data-action="show-current-inputs"]');
     if (!button) return;
     const nodeAlreadyShowsInputs = state.node._poseGalleryState?.source === "inputs";
-    button.disabled = state.movingRecordId != null || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    button.disabled = state.deletingRecordId != null || state.movingRecordId != null || state.bulkOperation != null
+        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     button.textContent = state.loadingCurrentInputs
         ? "Loading current inputs…"
         : state.savingRecord || state.saveQueued ? "Saving record…"
@@ -587,7 +651,8 @@ function updateCurrentInputsButton(state) {
             : nodeAlreadyShowsInputs ? "Refresh current inputs" : "Show current inputs";
     button.setAttribute("aria-pressed", String(state.showingCurrentInputs));
     const saveButton = state.root.querySelector('[data-action="save-current"]');
-    if (saveButton) saveButton.disabled = state.deletingCollectionId != null || state.movingRecordId != null
+    if (saveButton) saveButton.disabled = state.deletingRecordId != null || state.deletingCollectionId != null
+        || state.movingRecordId != null || state.bulkOperation != null
         || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     updateRecordActions(state);
 }
@@ -624,7 +689,7 @@ function showCurrentInputs(state, preview) {
 
 /** @param {GalleryPanelState} state */
 async function toggleCurrentInputs(state) {
-    if (state.movingRecordId != null || state.deletingCollectionId != null
+    if (state.deletingRecordId != null || state.movingRecordId != null || state.bulkOperation != null || state.deletingCollectionId != null
         || state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
     if (state.showingCurrentInputs) {
         if (state.selectedRecord) showRecord(state, state.selectedRecord);
@@ -664,7 +729,7 @@ function showNodeState(panelState, nodeState) {
 
 /** @param {GalleryPanelState} state */
 async function saveCurrent(state, name) {
-    if (state.movingRecordId != null || state.deletingCollectionId != null
+    if (state.deletingRecordId != null || state.movingRecordId != null || state.bulkOperation != null || state.deletingCollectionId != null
         || state.savingRecord || state.saveQueued || state.loadingCurrentInputs) return;
     state.savingRecord = true;
     updateCurrentInputsButton(state);
@@ -694,7 +759,7 @@ async function saveCurrent(state, name) {
 /** @param {GalleryPanelState} state */
 async function useSelectedRecord(state) {
     if (!state.selectedRecord || state.deletingRecordId != null || state.movingRecordId != null
-        || state.deletingCollectionId != null || state.selectionPending || state.usingRecord
+        || state.bulkOperation != null || state.deletingCollectionId != null || state.selectionPending || state.usingRecord
         || state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
     const selectedRecord = state.selectedRecord;
     state.usingRecord = true;

@@ -1,7 +1,7 @@
 import { resizePreviewCanvas } from "./preview.js";
 
 /** @typedef {import("./types.js").GalleryPanelState} GalleryPanelState */
-/** @typedef {import("./types.js").GalleryRecord} GalleryRecord */
+/** @typedef {import("./types.js").GalleryRecordSummary} GalleryRecordSummary */
 
 /** @param {GalleryPanelState} state */
 export function openPreviewLightbox(state) {
@@ -50,13 +50,18 @@ export function closeSettings(state) {
     if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
-/** @param {GalleryPanelState} state @param {GalleryRecord | null} record */
-export function openDeleteConfirmation(state, record) {
+/** @param {GalleryPanelState} state @param {GalleryRecordSummary[] | null} records */
+export function openDeleteConfirmation(state, records) {
     const dialog = state.root.querySelector('[data-role="delete-confirmation"]');
-    if (!record || !dialog || state.deleteConfirmOpen) return;
-    state.pendingDeleteRecord = record;
+    if (!records?.length || !dialog || state.deleteConfirmOpen) return;
+    state.pendingDeleteRecords = records;
     state.deleteConfirmReturnFocus = document.activeElement;
-    state.root.querySelector('[data-role="delete-record-name"]').textContent = record.name || "Untitled record";
+    const singular = records.length === 1;
+    state.root.querySelector('[data-role="delete-title"]').textContent = singular ? "Delete record?" : `Delete ${records.length} records?`;
+    state.root.querySelector('[data-role="delete-record-name"]').textContent = singular
+        ? records[0].name || "Untitled record"
+        : `${records.length} records`;
+    dialog.querySelector('[data-action="confirm-delete"]').textContent = singular ? "Delete record" : `Delete ${records.length} records`;
     state.deleteConfirmOpen = true;
     dialog.hidden = false;
     dialog.querySelector('[data-action="cancel-delete"]').focus({ preventScroll: true });
@@ -68,24 +73,29 @@ export function closeDeleteConfirmation(state, restoreFocus = true) {
     if (!dialog || !state.deleteConfirmOpen) return;
     state.deleteConfirmOpen = false;
     dialog.hidden = true;
-    state.pendingDeleteRecord = null;
+    state.pendingDeleteRecords = [];
     const returnFocus = state.deleteConfirmReturnFocus;
     state.deleteConfirmReturnFocus = null;
     if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
-/** @param {GalleryPanelState} state @param {GalleryRecord | null} record */
-export function openMoveDialog(state, record) {
+/** @param {GalleryPanelState} state @param {GalleryRecordSummary[] | null} records */
+export function openMoveDialog(state, records) {
     const dialog = state.root.querySelector('[data-role="move-dialog"]');
-    if (!record || !dialog || state.moveDialogOpen || state.movingRecordId != null) return;
-    const destinations = state.collections.filter((collection) => collection.id !== record.collection_id);
+    if (!records?.length || !dialog || state.moveDialogOpen || state.movingRecordId != null) return;
+    const sourceCollectionId = records[0].collection_id;
+    const destinations = state.collections.filter((collection) => collection.id !== sourceCollectionId);
     if (!destinations.length) return;
 
-    state.pendingMoveRecord = record;
+    state.pendingMoveRecords = records;
     state.moveDialogReturnFocus = document.activeElement;
-    state.root.querySelector('[data-role="move-record-name"]').textContent = record.name || "Untitled record";
-    const source = state.collections.find((collection) => collection.id === record.collection_id);
-    state.root.querySelector('[data-role="move-source-name"]').textContent = source?.name || "current collection";
+    const singular = records.length === 1;
+    const source = state.collections.find((collection) => collection.id === sourceCollectionId);
+    state.root.querySelector('[data-role="move-title"]').textContent = singular ? "Move record" : `Move ${records.length} records`;
+    state.root.querySelector('[data-role="move-description"]').textContent = singular
+        ? `Move “${records[0].name || "Untitled record"}” from ${source?.name || "current collection"} to another collection. The record and its files will be kept.`
+        : `Move ${records.length} records from ${source?.name || "current collection"} to another collection. Their files will be kept.`;
+    dialog.querySelector('[data-action="confirm-move"]').textContent = singular ? "Move record" : `Move ${records.length} records`;
     const select = state.root.querySelector('[data-role="move-collection"]');
     select.replaceChildren();
     for (const collection of destinations) {
@@ -106,21 +116,21 @@ export function closeMoveDialog(state, restoreFocus = true) {
     if (!dialog || !state.moveDialogOpen) return;
     state.moveDialogOpen = false;
     dialog.hidden = true;
-    state.pendingMoveRecord = null;
+    state.pendingMoveRecords = [];
     const returnFocus = state.moveDialogReturnFocus;
     state.moveDialogReturnFocus = null;
     if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
-/** @param {GalleryPanelState} state @param {(state: GalleryPanelState, record: GalleryRecord, collectionId: string) => Promise<void>} moveSelectedRecord */
-export function submitMoveDialog(state, moveSelectedRecord) {
-    if (!state.moveDialogOpen || !state.pendingMoveRecord) return;
+/** @param {GalleryPanelState} state @param {(state: GalleryPanelState, records: GalleryRecordSummary[], collectionId: string) => Promise<void>} moveSelectedRecords */
+export function submitMoveDialog(state, moveSelectedRecords) {
+    if (!state.moveDialogOpen || !state.pendingMoveRecords.length) return;
     const collectionId = state.root.querySelector('[data-role="move-collection"]').value;
-    if (!collectionId || collectionId === state.pendingMoveRecord.collection_id) return;
-    const record = state.pendingMoveRecord;
+    if (!collectionId || collectionId === state.pendingMoveRecords[0].collection_id) return;
+    const records = state.pendingMoveRecords;
     closeMoveDialog(state, false);
     state.root.querySelector('[data-role="search"]').focus({ preventScroll: true });
-    void moveSelectedRecord(state, record, collectionId);
+    void moveSelectedRecords(state, records, collectionId);
 }
 
 /** @param {GalleryPanelState} state @param {{ id: string, name: string } | null} collection */

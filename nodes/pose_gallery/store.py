@@ -22,6 +22,7 @@ __all__ = [
     "RecordSummary",
     "collections_path",
     "delete_collection",
+    "delete_records",
     "ensure_record_thumbnail",
     "find_collection",
     "is_valid_image",
@@ -30,6 +31,7 @@ __all__ = [
     "load_record",
     "manifest_preview_array",
     "move_record",
+    "move_records",
     "read_collections",
     "read_manifest",
     "record_dir",
@@ -263,6 +265,71 @@ def move_record(record_id: str, collection_id: str) -> RecordManifest | None:
         manifest["collection_id"] = collection_id
         write_json(os.path.join(record_dir(record_id), "record.json"), manifest)
     return manifest
+
+
+def delete_records(record_ids: list[str]) -> list[str]:
+    manifests = {record_id: read_manifest(record_id) for record_id in record_ids}
+    if any(manifest is None for manifest in manifests.values()):
+        raise FileNotFoundError("Gallery record not found")
+
+    os.makedirs(_entries_root(), exist_ok=True)
+    staging_directory = os.path.join(_entries_root(), f".delete-{uuid.uuid4().hex}")
+    os.mkdir(staging_directory)
+    moved_record_ids = []
+    try:
+        for record_id in record_ids:
+            os.replace(record_dir(record_id), os.path.join(staging_directory, record_id))
+            moved_record_ids.append(record_id)
+    except Exception:
+        rollback_complete = True
+        for record_id in reversed(moved_record_ids):
+            try:
+                os.replace(os.path.join(staging_directory, record_id), record_dir(record_id))
+            except OSError:
+                rollback_complete = False
+        if rollback_complete:
+            shutil.rmtree(staging_directory, ignore_errors=True)
+        raise
+
+    shutil.rmtree(staging_directory, ignore_errors=True)
+    return record_ids
+
+
+def move_records(record_ids: list[str], collection_id: str) -> list[str]:
+    if find_collection(collection_id) is None:
+        raise ValueError("Unknown gallery collection")
+
+    manifests = {record_id: read_manifest(record_id) for record_id in record_ids}
+    if any(manifest is None for manifest in manifests.values()):
+        raise FileNotFoundError("Gallery record not found")
+
+    staged = []
+    replaced = []
+    try:
+        for record_id in record_ids:
+            manifest = manifests[record_id]
+            if manifest.get("collection_id") == collection_id:
+                continue
+            temporary_path = os.path.join(record_dir(record_id), f".record-{uuid.uuid4().hex}.tmp")
+            write_json(temporary_path, {**manifest, "collection_id": collection_id})
+            staged.append((record_id, temporary_path, manifest))
+
+        for record_id, temporary_path, manifest in staged:
+            os.replace(temporary_path, os.path.join(record_dir(record_id), "record.json"))
+            replaced.append((record_id, manifest))
+    except Exception:
+        for record_id, manifest in reversed(replaced):
+            try:
+                write_json(os.path.join(record_dir(record_id), "record.json"), manifest)
+            except OSError:
+                pass
+        for _record_id, temporary_path, _manifest in staged:
+            try:
+                os.remove(temporary_path)
+            except OSError:
+                pass
+        raise
+    return record_ids
 
 
 def list_records(collection_id: str | None = None) -> list[RecordSummary]:

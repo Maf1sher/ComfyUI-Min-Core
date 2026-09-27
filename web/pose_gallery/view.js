@@ -101,7 +101,10 @@ export function buildGalleryHtml(headingId) {
                                     <span class="mcore-pg-gallery-stats-badge mcore-pg-gallery-header-ctrl" data-role="stats">0 records</span>
                                     <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-view" data-action="view-mode" type="button">View: medium</button>
                                 </div>
-                                <div class="mcore-pg-toolbar-group mcore-pg-selected-record-tools" role="group" aria-label="Selected record actions">
+                                <div class="mcore-pg-toolbar-group mcore-pg-selected-record-tools" role="group" aria-label="Record selection and actions">
+                                    <span class="mcore-pg-selection-count" data-role="selection-count" aria-live="polite" hidden></span>
+                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="select-page" type="button" title="Select or deselect records on the current page" disabled>Select page</button>
+                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="clear-selection" type="button" hidden>Clear selection</button>
                                     <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="move-record" type="button" disabled>Move to collection</button>
                                     <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-delete-record" data-action="delete-record" type="button" disabled>Delete record</button>
                                 </div>
@@ -152,7 +155,7 @@ export function buildGalleryHtml(headingId) {
             <div class="mcore-pg-confirm-dialog" data-role="delete-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="${headingId}-delete-title" aria-describedby="${headingId}-delete-copy" hidden>
                 <section class="mcore-pg-confirm-panel">
                     <div class="mcore-pg-eyebrow">Permanent action</div>
-                    <h2 class="mcore-pg-confirm-title" id="${headingId}-delete-title">Delete record?</h2>
+                    <h2 class="mcore-pg-confirm-title" id="${headingId}-delete-title" data-role="delete-title">Delete record?</h2>
                     <p class="mcore-pg-confirm-copy" id="${headingId}-delete-copy">Permanently delete <strong data-role="delete-record-name"></strong>? This cannot be undone.</p>
                     <footer class="mcore-pg-confirm-actions">
                         <button class="mcore-pg-button" data-action="cancel-delete" type="button">Cancel</button>
@@ -163,8 +166,8 @@ export function buildGalleryHtml(headingId) {
             <div class="mcore-pg-confirm-dialog" data-role="move-dialog" role="dialog" aria-modal="true" aria-labelledby="${headingId}-move-title" aria-describedby="${headingId}-move-help" hidden>
                 <section class="mcore-pg-confirm-panel">
                     <div class="mcore-pg-eyebrow">Pose Gallery</div>
-                    <h2 class="mcore-pg-confirm-title" id="${headingId}-move-title">Move record</h2>
-                    <p class="mcore-pg-confirm-copy" id="${headingId}-move-help">Move <strong data-role="move-record-name"></strong> from <strong data-role="move-source-name"></strong> to another collection. The record and its files will be kept.</p>
+                    <h2 class="mcore-pg-confirm-title" id="${headingId}-move-title" data-role="move-title">Move record</h2>
+                    <p class="mcore-pg-confirm-copy" id="${headingId}-move-help" data-role="move-description"></p>
                     <label class="mcore-pg-save-label" for="${headingId}-move-collection">Destination collection</label>
                     <select class="mcore-pg-save-input" id="${headingId}-move-collection" data-role="move-collection"></select>
                     <footer class="mcore-pg-confirm-actions">
@@ -298,7 +301,7 @@ function addStatusState(carousel, { titleText, copyText, role = "status", retry 
     carousel.appendChild(state);
 }
 
-export function renderRecords(state, { onSelect, onRetry, onPageChange }) {
+export function renderRecords(state, { onSelect, onRetry, onPageChange, onSelectionChange }) {
     const container = state.root.querySelector('[data-role="records"]');
     state.thumbnailObserver?.disconnect();
     container.replaceChildren();
@@ -343,13 +346,34 @@ export function renderRecords(state, { onSelect, onRetry, onPageChange }) {
         for (const record of pageRecords) {
             const item = document.createElement("div");
             item.className = "mcore-pg-gallery-item";
-            item.tabIndex = 0;
-            item.setAttribute("role", "button");
+            item.setAttribute("role", "group");
             item.setAttribute("aria-label", record.name || "Untitled record");
             item.dataset.recordId = record.id;
             const isSelected = state.selectedRecord?.id === record.id;
+            const isBulkSelected = state.selectedRecordIds.has(String(record.id));
             item.classList.toggle("is-selected", isSelected);
-            item.setAttribute("aria-pressed", String(isSelected));
+            item.classList.toggle("is-bulk-selected", isBulkSelected);
+
+            const selectInput = document.createElement("input");
+            selectInput.className = "mcore-pg-record-select";
+            selectInput.type = "checkbox";
+            selectInput.dataset.role = "record-select";
+            selectInput.dataset.recordId = record.id;
+            selectInput.checked = isBulkSelected;
+            selectInput.setAttribute("aria-label", `Select ${record.name || "Untitled record"}`);
+            selectInput.addEventListener("change", () => {
+                if (selectInput.checked) state.selectedRecordIds.add(String(record.id));
+                else state.selectedRecordIds.delete(String(record.id));
+                item.classList.toggle("is-bulk-selected", selectInput.checked);
+                onSelectionChange?.();
+            });
+
+            const previewButton = document.createElement("div");
+            previewButton.className = "mcore-pg-gallery-item-preview";
+            previewButton.tabIndex = 0;
+            previewButton.setAttribute("role", "button");
+            previewButton.setAttribute("aria-label", record.name || "Untitled record");
+            previewButton.setAttribute("aria-pressed", String(isSelected));
 
             const canvas = document.createElement("canvas");
             canvas.width = 360;
@@ -393,10 +417,11 @@ export function renderRecords(state, { onSelect, onRetry, onPageChange }) {
             metaTags.className = "mcore-pg-gallery-item-meta-kp";
             metaTags.textContent = record.general_tags || (record.person_tags || []).filter(Boolean).join(", ") || "No tags";
             meta.append(metaName, metaDate, metaMasks, metaTags);
-            item.append(imageFrame, title, meta);
+            previewButton.append(imageFrame, title, meta);
+            item.append(selectInput, previewButton);
 
-            item.addEventListener("click", () => onSelect(record.id));
-            item.addEventListener("keydown", (event) => {
+            previewButton.addEventListener("click", () => onSelect(record.id));
+            previewButton.addEventListener("keydown", (event) => {
                 if (event.key !== "Enter" && event.key !== " ") return;
                 event.preventDefault();
                 onSelect(record.id);

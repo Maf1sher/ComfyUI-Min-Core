@@ -5,7 +5,6 @@ import json
 import math
 import os
 import re
-import shutil
 import uuid
 from io import BytesIO
 from typing import Literal, TypedDict
@@ -59,6 +58,15 @@ def get_last_capture_token(node_id: str) -> str:
 
 
 routes = PromptServer.instance.routes
+
+
+def _record_ids(payload: object) -> list[str]:
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid payload")
+    raw_ids = payload.get("record_ids")
+    if not isinstance(raw_ids, list) or not raw_ids or any(not isinstance(record_id, str) for record_id in raw_ids):
+        raise ValueError("Record IDs must be a non-empty list of strings")
+    return list(dict.fromkeys(raw_ids))
 
 
 @routes.post("/mincore/pose_gallery/preview_pose")
@@ -154,6 +162,60 @@ async def _get_records(request: web.Request) -> web.Response:
         return web.json_response({"error": str(error)}, status=404)
 
 
+@routes.post("/mincore/pose_gallery/records/batch/delete")
+async def _delete_records(request: web.Request) -> web.Response:
+    try:
+        payload = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    try:
+        record_ids = _record_ids(payload)
+    except ValueError as error:
+        return web.json_response({"error": str(error)}, status=400)
+
+    try:
+        deleted_ids = gallery_store.delete_records(record_ids)
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Could not read a gallery record"}, status=500)
+    except FileNotFoundError:
+        return web.json_response({"error": "A selected record no longer exists"}, status=404)
+    except ValueError as error:
+        return web.json_response({"error": str(error)}, status=400)
+    except OSError:
+        return web.json_response({"error": "Could not delete the selected records"}, status=500)
+    return web.json_response({"ok": True, "ids": deleted_ids})
+
+
+@routes.post("/mincore/pose_gallery/records/batch/move")
+async def _move_records(request: web.Request) -> web.Response:
+    try:
+        payload = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    if not isinstance(payload, dict):
+        return web.json_response({"error": "Invalid payload"}, status=400)
+    try:
+        record_ids = _record_ids(payload)
+    except ValueError as error:
+        return web.json_response({"error": str(error)}, status=400)
+    collection_id = payload.get("collection_id")
+    if not isinstance(collection_id, str):
+        return web.json_response({"error": "Invalid collection ID"}, status=400)
+
+    try:
+        moved_ids = gallery_store.move_records(record_ids, collection_id)
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Could not read a gallery record or collection index"}, status=500)
+    except FileNotFoundError:
+        return web.json_response({"error": "A selected record no longer exists"}, status=404)
+    except ValueError as error:
+        status = 404 if str(error) == "Unknown gallery collection" else 400
+        return web.json_response({"error": str(error)}, status=status)
+    except OSError:
+        return web.json_response({"error": "Could not move the selected records"}, status=500)
+    return web.json_response({"ok": True, "ids": moved_ids, "collection_id": collection_id})
+
+
 @routes.get("/mincore/pose_gallery/records/{record_id}")
 async def _get_record(request: web.Request) -> web.Response:
     record_id = request.match_info.get("record_id", "")
@@ -187,18 +249,13 @@ async def _get_record(request: web.Request) -> web.Response:
 async def _delete_record(request: web.Request) -> web.Response:
     record_id = request.match_info.get("record_id", "")
     try:
-        directory = gallery_store.record_dir(record_id)
-        manifest = gallery_store.read_manifest(record_id)
+        gallery_store.delete_records([record_id])
     except json.JSONDecodeError:
         return web.json_response({"error": "Could not read the gallery record"}, status=500)
+    except FileNotFoundError:
+        return web.json_response({"error": "Record not found"}, status=404)
     except ValueError as error:
         return web.json_response({"error": str(error)}, status=400)
-    except OSError:
-        return web.json_response({"error": "Could not read the gallery record"}, status=500)
-    if manifest is None:
-        return web.json_response({"error": "Record not found"}, status=404)
-    try:
-        shutil.rmtree(directory)
     except OSError:
         return web.json_response({"error": "Could not delete the gallery record"}, status=500)
     return web.json_response({"ok": True, "id": record_id})

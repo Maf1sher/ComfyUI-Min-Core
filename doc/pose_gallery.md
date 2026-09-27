@@ -79,7 +79,8 @@ image in a larger overlay without changing the record list layout. The layer
 controls sit below the expanded image so they do not cover it.
 The side panel keeps **Use this record** as its primary action and
 **Show current inputs** as a secondary control. Record management actions are
-in the gallery toolbar and apply to the currently selected record.
+in the gallery toolbar. Each card has a separate checkbox, so selecting records
+for group actions does not change the record shown in the preview.
 General tags are shown separately from per-person tags. Each person's tags are
 shown in their own detail row, using the same right-aligned tag styling as the
 other record details. The record details also show the source image resolution
@@ -97,13 +98,20 @@ Record thumbnails load as they approach the visible area. The gallery renders
 up to 48 cards per page, and reuses generated 360 × 270 thumbnails instead of
 downloading full-resolution layers for every card. Collection loading shows
 progress and offers a retry if the request fails.
-Select a record, then use **Delete record** in the gallery toolbar to permanently
-remove it and its stored files. A confirmation dialog opens inside the gallery.
-If the deleted record is currently selected as the node output, the node switches
-back to its connected inputs. Use **Move to collection** in the toolbar to change
-the selected record's collection without deleting or copying its data. Choose a
-destination in the dialog; the gallery then opens that collection with the record
-selected. Its ID and current node output stay unchanged.
+Use **Select page** to select all records currently shown on the page, or toggle
+individual card checkboxes. Page selection follows the current search results;
+selected records remain selected while changing pages or search terms, and are
+cleared when changing collections. **Clear selection** removes all checks. When
+one or more records are checked, **Move selected** and **Delete selected** apply
+to those records; with no checked records, the actions apply to the record shown
+in the preview. Deletion requires confirmation and permanently removes the
+selected records and their files. If a deleted record is currently used as the
+node output, the node switches back to its connected inputs.
+
+Choose a destination in the move dialog to move one or more records without
+deleting or copying their data. The gallery opens the destination collection
+with one of the moved records selected for preview. Record IDs and current node
+outputs stay unchanged.
 
 ## Outputs
 
