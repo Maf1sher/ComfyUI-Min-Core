@@ -55,8 +55,9 @@ again after changing a setting to refresh the preview.
 ## Gallery preview
 
 The detail preview layers the source image, rendered pose, and each mask. Image
-and pose are visible by default; masks start hidden. The pose is brightened and
-its line thickness can be adjusted in the **Preview** section of Settings;
+and available pose are visible by default; masks start hidden. The pose layer
+control is omitted when a record has no pose keypoints. The pose is brightened
+and its line thickness can be adjusted in the **Preview** section of Settings;
 `1.0×` keeps the original thickness. This only affects the preview, not the
 node's `OPENPOSE` output, and the setting is saved locally. Use the checkboxes
 beside the preview or in the expanded overlay to toggle layers; both sets stay

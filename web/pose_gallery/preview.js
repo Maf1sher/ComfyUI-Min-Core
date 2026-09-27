@@ -213,6 +213,58 @@ export function drawRecordThumbnail(canvas, recordId, hasImage = true) {
     image.src = api.apiURL(`/mincore/pose_gallery/records/${recordId}/assets/${previewFilename}`);
 }
 
+function isFiniteCoordinate(value) {
+    return value !== null && value !== "" && Number.isFinite(Number(value));
+}
+
+function hasOpenPose(poseJson) {
+    if (typeof poseJson !== "string" || !poseJson.trim()) return false;
+
+    let pose;
+    try {
+        pose = JSON.parse(poseJson);
+    } catch (_error) {
+        return false;
+    }
+    if (Array.isArray(pose)) {
+        if (pose.length !== 1 || !pose[0] || typeof pose[0] !== "object" || Array.isArray(pose[0])) return false;
+        [pose] = pose;
+    }
+    if (!pose || typeof pose !== "object" || Array.isArray(pose)) return false;
+
+    if (Array.isArray(pose.people) || Array.isArray(pose.pose_keypoints_2d)) {
+        const people = Array.isArray(pose.people) ? pose.people : [pose];
+        return people.some((person) => {
+            const keypoints = person?.pose_keypoints_2d;
+            if (!Array.isArray(keypoints)) return false;
+            const step = keypoints.length % 3 === 0 ? 3 : keypoints.length % 2 === 0 ? 2 : 0;
+            const count = step ? keypoints.length / step : 0;
+            if (![17, 18].includes(count)) return false;
+            for (let index = 0; index < keypoints.length; index += step) {
+                if (!isFiniteCoordinate(keypoints[index]) || !isFiniteCoordinate(keypoints[index + 1])) continue;
+                if (step === 2 || (isFiniteCoordinate(keypoints[index + 2]) && Number(keypoints[index + 2]) > 0)) {
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    if (!Array.isArray(pose.keypoints) || !pose.keypoints.length) return false;
+    const first = pose.keypoints[0];
+    const groups = Array.isArray(first) && first.length > 0 && (Array.isArray(first[0]) || first[0] === null)
+        ? pose.keypoints
+        : [pose.keypoints];
+    return groups.some((keypoints) => (
+        Array.isArray(keypoints)
+        && [17, 18].includes(keypoints.length)
+        && keypoints.some((point) => {
+            const coordinates = Array.isArray(point) ? point : [point?.x, point?.y];
+            return isFiniteCoordinate(coordinates[0]) && isFiniteCoordinate(coordinates[1]);
+        })
+    ));
+}
+
 export function setPreviewSource(state, preview) {
     state.previewRevision = (state.previewRevision || 0) + 1;
     const revision = state.previewRevision;
@@ -227,6 +279,7 @@ export function setPreviewSource(state, preview) {
     ].filter(Boolean);
     controlContainers.forEach((controls) => controls.replaceChildren());
 
+    const poseJson = typeof preview.pose_json === "string" ? preview.pose_json : "";
     const layers = [
         {
             name: "Image",
@@ -235,14 +288,14 @@ export function setPreviewSource(state, preview) {
             visibilityKey: "image",
             visible: state.previewLayerVisibility.image ?? true,
         },
-        {
+        ...(hasOpenPose(poseJson) ? [{
             name: "Pose",
             type: "pose",
             url: displayUrl(preview.pose),
-            poseJson: typeof preview.pose_json === "string" ? preview.pose_json : "",
+            poseJson,
             visibilityKey: "pose",
             visible: state.previewLayerVisibility.pose ?? true,
-        },
+        }] : []),
         ...(preview.masks || []).map((mask, index) => ({
             name: `Mask ${index + 1}`,
             type: "mask",
