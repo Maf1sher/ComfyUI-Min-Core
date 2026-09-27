@@ -33,8 +33,9 @@ the machine where they are opened.
 
 Inputs are evaluated lazily. In gallery mode the node can load a selected
 record without running its upstream inputs. The gallery's **Save current
-inputs** button opens an in-gallery dialog for an optional record name, then
-queues the node to capture connected data in the selected collection. Leave the
+inputs** button in the preview panel opens an in-gallery dialog for an optional
+record name, then queues the node to capture connected data in the selected
+collection. Choose the destination collection in the gallery toolbar. Leave the
 name blank to use an automatic name. The **image** is optional; pose JSON, masks,
 and tags can be saved without one. Any connected image must be a valid IMAGE
 tensor.

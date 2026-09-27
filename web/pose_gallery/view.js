@@ -55,6 +55,7 @@ export function buildGalleryHtml(headingId) {
                     <div class="mcore-pg-record-actions" role="group" aria-label="Record actions">
                         <button class="mcore-pg-button mcore-pg-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
                         <button class="mcore-pg-button mcore-pg-current-inputs" data-action="show-current-inputs" type="button">Show current inputs</button>
+                        <button class="mcore-pg-button mcore-pg-save-current-btn" data-action="save-current" type="button" title="Save current inputs to the selected collection">Save current inputs</button>
                     </div>
                     <div class="mcore-pg-gallery-details">
                         <div class="mcore-pg-gallery-details-empty" data-role="details-empty">Select a record to inspect its image, pose, masks, and tags.</div>
@@ -90,7 +91,6 @@ export function buildGalleryHtml(headingId) {
                             <div class="mcore-pg-toolbar">
                                 <div class="mcore-pg-toolbar-group mcore-pg-library-tools">
                                     <select class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-collection" data-role="collection" aria-label="Collection"></select>
-                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-save-current-btn" data-action="save-current" type="button" title="Save current inputs to the selected collection">Save current inputs</button>
                                     <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="new-collection" type="button">New collection</button>
                                     <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-delete-collection" data-action="delete-collection" type="button" disabled>Delete collection</button>
                                 </div>

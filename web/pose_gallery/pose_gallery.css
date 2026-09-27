@@ -1584,10 +1584,6 @@
         gap: 4px;
     }
 
-    .mcore-pg-gallery .mcore-pg-library-tools [data-action="save-current"] {
-        grid-column: auto;
-    }
-
     .mcore-pg-gallery .mcore-pg-toolbar .mcore-pg-gallery-header-ctrl {
         height: 28px;
         min-height: 28px;

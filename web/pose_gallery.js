@@ -646,14 +646,16 @@ function updateCurrentInputsButton(state) {
         || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     button.textContent = state.loadingCurrentInputs
         ? "Loading current inputs…"
-        : state.savingRecord || state.saveQueued ? "Saving record…"
         : state.showingCurrentInputs ? "Show node output"
             : nodeAlreadyShowsInputs ? "Refresh current inputs" : "Show current inputs";
     button.setAttribute("aria-pressed", String(state.showingCurrentInputs));
     const saveButton = state.root.querySelector('[data-action="save-current"]');
-    if (saveButton) saveButton.disabled = state.deletingRecordId != null || state.deletingCollectionId != null
-        || state.movingRecordId != null || state.bulkOperation != null
-        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    if (saveButton) {
+        saveButton.textContent = state.savingRecord || state.saveQueued ? "Saving record…" : "Save current inputs";
+        saveButton.disabled = state.deletingRecordId != null || state.deletingCollectionId != null
+            || state.movingRecordId != null || state.bulkOperation != null
+            || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    }
     updateRecordActions(state);
 }
 
