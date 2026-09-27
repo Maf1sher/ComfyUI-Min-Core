@@ -633,7 +633,10 @@ class MinCore_PoseGallery(io.ComfyNode):
                     tooltip="Show or hide all masks in the node preview.",
                 ),
                 io.Combo.Input("output_source", options=["inputs", "gallery"], default="inputs",
-                               tooltip="Choose the connected inputs or the selected gallery record."),
+                               tooltip=(
+                                   "Choose connected inputs or a selected gallery record. "
+                                   "If no record is selected, connected inputs are used."
+                               )),
                 io.String.Input("gallery_collection_id", default="default", socketless=True),
                 io.String.Input("gallery_record_id", default="", socketless=True),
             ],
@@ -697,10 +700,11 @@ class MinCore_PoseGallery(io.ComfyNode):
         general_tags=None,
         person_tags=None,
         output_source="inputs",
+        gallery_record_id="",
         **kwargs,
     ):
         node_id = str(cls.hidden.unique_id)
-        if output_source == "gallery" and node_id not in _pending_captures:
+        if output_source == "gallery" and gallery_record_id and node_id not in _pending_captures:
             return []
         values = {
             "image": image,
@@ -738,12 +742,10 @@ class MinCore_PoseGallery(io.ComfyNode):
         input_general_tags = general_tags
         input_person_tags = person_tags
 
-        if output_source == "gallery" and not gallery_record_id and capture_request is not None:
+        if output_source == "gallery" and not gallery_record_id:
             output_source = "inputs"
 
         if output_source == "gallery":
-            if not gallery_record_id:
-                raise RuntimeError("Pose Gallery: select a gallery record or switch output_source to inputs.")
             manifest, image, masks_out = _load_record(gallery_record_id)
             pose_json = str(manifest.get("pose_json", ""))
             general_tags = str(manifest.get("general_tags", ""))

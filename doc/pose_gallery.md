@@ -25,7 +25,8 @@ the machine where they are opened.
 - **person_tags** — dynamic STRING inputs (`person_tag_0`, `person_tag_1`, …),
   ordered to correspond to people in the pose JSON.
 - **output_source** — `inputs` (default) to use connected values, or `gallery`
-  to use the selected saved record.
+  to use the selected saved record. If no record is selected, the node falls
+  back to the connected inputs.
 
 Inputs are evaluated lazily. In gallery mode the node can load a selected
 record without running its upstream inputs. The gallery's **Save current
@@ -100,7 +101,8 @@ strings to preserve person order. `POSE_JSON` and `GENERAL_TAGS` are empty
 strings when omitted, and `OPENPOSE` is still rendered from `pose_json`. These
 placeholders keep downstream IMAGE and MASK inputs type-valid, but they are
 synthetic values and may affect downstream results. Saving a record still
-requires an actual connected image. In `gallery` mode, a record must be selected.
+requires an actual connected image. In `gallery` mode, a selected record is
+used; if none is selected, outputs follow the connected inputs instead.
 
 ComfyUI's current node API does not provide dynamic output sockets. Masks and
 per-person tags therefore use one list-valued output socket each, not one
