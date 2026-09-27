@@ -399,17 +399,17 @@ export function updateRecordDetails(state, record) {
     }
     const setDetail = (name, value) => {
         const element = state.root.querySelector(`[data-detail="${name}"]`);
-        if (element) element.textContent = value || "—";
+        if (element) element.textContent = value || "-";
     };
     const imageShape = Array.isArray(record.image_shape) ? record.image_shape : [];
     const imageDimensions = imageShape.length >= 4 ? imageShape.slice(-3, -1) : imageShape.slice(0, 2);
     const [height, width] = imageDimensions.map(Number);
     setDetail("name", record.name || "Untitled record");
-    setDetail("collection", state.collections.find((item) => item.id === record.collection_id)?.name || "—");
-    setDetail("created", record.created ? new Date(record.created).toLocaleString() : "—");
+    setDetail("collection", state.collections.find((item) => item.id === record.collection_id)?.name || "-");
+    setDetail("created", record.created ? new Date(record.created).toLocaleString() : "-");
     setDetail("resolution", Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0
         ? `${width} × ${height} px`
-        : "—");
+        : "-");
     setDetail("masks", String(record.mask_count || 0));
     setDetail("general-tags", record.general_tags || "—");
     const personTags = Array.isArray(record.person_tags) ? record.person_tags : [];

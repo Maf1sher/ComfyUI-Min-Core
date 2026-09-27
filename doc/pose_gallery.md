@@ -40,9 +40,10 @@ node's `OPENPOSE` output, and the setting is saved locally. Use the checkboxes
 beside the preview or in the expanded overlay to toggle layers; both sets stay
 synchronized, and their visibility settings remain in effect when switching the
 preview to another image or record while the gallery is open. The side-panel
-preview uses a square frame. Use its expand button to inspect the image in a
-larger overlay without changing the record list layout. The layer controls sit
-below the expanded image so they do not cover it.
+preview uses a square frame. Its layer controls remain fully visible while
+long record details scroll independently. Use its expand button to inspect the
+image in a larger overlay without changing the record list layout. The layer
+controls sit below the expanded image so they do not cover it.
 General tags are shown separately from per-person tags. Each person's tags are
 shown in their own detail row, using the same right-aligned tag styling as the
 other record details. The record details also show the source image resolution
