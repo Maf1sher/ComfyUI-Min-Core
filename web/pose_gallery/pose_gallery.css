@@ -754,6 +754,59 @@
     display: grid;
 }
 
+.mcore-pg-gallery .mcore-pg-confirm-dialog {
+    position: absolute;
+    z-index: 60;
+    inset: 0;
+    display: none;
+    place-items: center;
+    padding: 20px;
+    background: rgba(8, 10, 14, .72);
+    backdrop-filter: blur(4px);
+}
+
+.mcore-pg-gallery .mcore-pg-confirm-dialog:not([hidden]) {
+    display: grid;
+}
+
+.mcore-pg-gallery .mcore-pg-confirm-dialog[hidden] {
+    display: none !important;
+}
+
+.mcore-pg-gallery .mcore-pg-confirm-panel {
+    width: min(460px, 100%);
+    padding: 22px;
+    border: 1px solid var(--mcore-pg-border);
+    border-radius: 12px;
+    background: var(--mcore-pg-surface);
+    color: var(--mcore-pg-text);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .4);
+}
+
+.mcore-pg-gallery .mcore-pg-confirm-title {
+    margin: 0;
+    color: var(--mcore-pg-text);
+    font-size: 18px;
+}
+
+.mcore-pg-gallery .mcore-pg-confirm-copy {
+    margin: 10px 0 22px;
+    color: var(--mcore-pg-text-muted);
+    font-size: 13px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+.mcore-pg-gallery .mcore-pg-confirm-copy strong {
+    color: var(--mcore-pg-text);
+}
+
+.mcore-pg-gallery .mcore-pg-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
 .mcore-pg-gallery .mcore-pg-settings-panel {
     display: flex;
     flex-direction: column;
@@ -913,6 +966,18 @@
     opacity: .48;
     cursor: not-allowed;
     box-shadow: none;
+}
+
+.mcore-pg-gallery .mcore-pg-delete-record,
+.mcore-pg-gallery .mcore-pg-delete-confirm-button {
+    border-color: color-mix(in srgb, #e5484d 55%, var(--mcore-pg-border));
+    color: var(--error-text, #ff8585);
+}
+
+.mcore-pg-gallery .mcore-pg-delete-record:hover:not(:disabled),
+.mcore-pg-gallery .mcore-pg-delete-confirm-button:hover:not(:disabled) {
+    border-color: #e5484d;
+    background: color-mix(in srgb, #e5484d 16%, var(--mcore-pg-button-hover-bg));
 }
 
 .mcore-pg-gallery .mcore-pg-gallery-details {

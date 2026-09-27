@@ -58,6 +58,10 @@ follows the active ComfyUI color theme. When a collection has fewer records than
 fit across the gallery, its cards expand to use the available width.
 Record thumbnails load as they approach the visible area. Collection loading
 shows progress and offers a retry if the request fails.
+Select a record and use **Delete record** in the side panel to permanently remove
+it and its stored files. A confirmation dialog opens inside the gallery. If the
+deleted record is currently selected as the node output, the node switches back
+to its connected inputs.
 
 ## Outputs
 

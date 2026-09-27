@@ -356,6 +356,27 @@ async def _get_record(request: web.Request) -> web.Response:
     return web.json_response(manifest)
 
 
+@routes.delete("/mincore/pose_gallery/records/{record_id}")
+async def _delete_record(request: web.Request) -> web.Response:
+    record_id = request.match_info.get("record_id", "")
+    try:
+        directory = _record_dir(record_id)
+        manifest = _read_manifest(record_id)
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Could not read the gallery record"}, status=500)
+    except ValueError as error:
+        return web.json_response({"error": str(error)}, status=400)
+    except OSError:
+        return web.json_response({"error": "Could not read the gallery record"}, status=500)
+    if manifest is None:
+        return web.json_response({"error": "Record not found"}, status=404)
+    try:
+        shutil.rmtree(directory)
+    except OSError:
+        return web.json_response({"error": "Could not delete the gallery record"}, status=500)
+    return web.json_response({"ok": True, "id": record_id})
+
+
 @routes.get("/mincore/pose_gallery/records/{record_id}/assets/{filename}")
 async def _get_record_asset(request: web.Request) -> web.StreamResponse:
     record_id = request.match_info.get("record_id", "")

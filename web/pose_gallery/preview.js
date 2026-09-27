@@ -298,7 +298,9 @@ export function setPreviewSource(state, preview) {
     resizePreviewCanvas(state);
     renderPreview(state);
     updateRecordDetails(state, preview.record || null);
-    state.root.querySelector('[data-action="use-record"]').disabled = !state.selectedRecord;
+    const actionsBusy = state.selectionPending || state.deletingRecordId != null || state.usingRecord;
+    state.root.querySelector('[data-action="use-record"]').disabled = !state.selectedRecord || actionsBusy;
+    state.root.querySelector('[data-action="delete-record"]').disabled = !state.selectedRecord || actionsBusy;
 }
 
 export function resizePreviewCanvas(state) {

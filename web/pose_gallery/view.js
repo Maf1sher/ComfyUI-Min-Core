@@ -19,6 +19,7 @@ export function buildGalleryHtml(headingId) {
                     </div>
                     <div class="mcore-pg-layer-controls" data-role="layer-controls" role="group" aria-label="Preview layers"></div>
                     <button class="mcore-pg-button mcore-pg-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
+                    <button class="mcore-pg-button mcore-pg-delete-record" data-action="delete-record" type="button" disabled>Delete record</button>
                     <div class="mcore-pg-gallery-details">
                         <div class="mcore-pg-gallery-details-empty" data-role="details-empty">Select a record to inspect its image, pose, masks, and tags.</div>
                         <div class="mcore-pg-gallery-details-content" data-role="details" hidden>
@@ -97,6 +98,17 @@ export function buildGalleryHtml(headingId) {
                     </div>
                     <footer class="mcore-pg-settings-footer">
                         <button class="mcore-pg-button" data-action="close-settings" type="button">Done</button>
+                    </footer>
+                </section>
+            </div>
+            <div class="mcore-pg-confirm-dialog" data-role="delete-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="${headingId}-delete-title" aria-describedby="${headingId}-delete-copy" hidden>
+                <section class="mcore-pg-confirm-panel">
+                    <div class="mcore-pg-eyebrow">Permanent action</div>
+                    <h2 class="mcore-pg-confirm-title" id="${headingId}-delete-title">Delete record?</h2>
+                    <p class="mcore-pg-confirm-copy" id="${headingId}-delete-copy">Permanently delete <strong data-role="delete-record-name"></strong>? This cannot be undone.</p>
+                    <footer class="mcore-pg-confirm-actions">
+                        <button class="mcore-pg-button" data-action="cancel-delete" type="button">Cancel</button>
+                        <button class="mcore-pg-button mcore-pg-delete-confirm-button" data-action="confirm-delete" type="button">Delete record</button>
                     </footer>
                 </section>
             </div>

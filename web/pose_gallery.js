@@ -90,6 +90,28 @@ function closeSettings(state) {
     if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
+function openDeleteConfirmation(state, record) {
+    const dialog = state.root.querySelector('[data-role="delete-confirmation"]');
+    if (!record || !dialog || state.deleteConfirmOpen) return;
+    state.pendingDeleteRecord = record;
+    state.deleteConfirmReturnFocus = document.activeElement;
+    state.root.querySelector('[data-role="delete-record-name"]').textContent = record.name || "Untitled record";
+    state.deleteConfirmOpen = true;
+    dialog.hidden = false;
+    dialog.querySelector('[data-action="cancel-delete"]').focus({ preventScroll: true });
+}
+
+function closeDeleteConfirmation(state, restoreFocus = true) {
+    const dialog = state.root.querySelector('[data-role="delete-confirmation"]');
+    if (!dialog || !state.deleteConfirmOpen) return;
+    state.deleteConfirmOpen = false;
+    dialog.hidden = true;
+    state.pendingDeleteRecord = null;
+    const returnFocus = state.deleteConfirmReturnFocus;
+    state.deleteConfirmReturnFocus = null;
+    if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+}
+
 function applyPanelLayout(panel) {
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1280;
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
@@ -146,6 +168,10 @@ function openGallery(node) {
         recordsRequestId: 0,
         collectionsRequestId: 0,
         selectionRequestId: 0,
+        selectionPending: false,
+        selectionTargetRecordId: null,
+        deletingRecordId: null,
+        usingRecord: false,
         retryCollections: false,
         selectedRecord: null,
         selectedCollection: String(readWidget(node, "gallery_collection_id", "default")),
@@ -160,6 +186,9 @@ function openGallery(node) {
         previewReturnFocus: null,
         settingsOpen: false,
         settingsReturnFocus: null,
+        deleteConfirmOpen: false,
+        deleteConfirmReturnFocus: null,
+        pendingDeleteRecord: null,
         thumbnailObserver: null,
         restoreFocus,
         resizeHandler: null,
@@ -214,6 +243,11 @@ function openGallery(node) {
     root.querySelector('[data-action="new-collection"]').addEventListener("click", () => createCollection(state));
     root.querySelector('[data-action="save-current"]').addEventListener("click", () => saveCurrent(state));
     root.querySelector('[data-action="use-record"]').addEventListener("click", () => useSelectedRecord(state));
+    root.querySelector('[data-action="delete-record"]').addEventListener("click", () => {
+        if (!state.selectionPending && state.deletingRecordId == null) {
+            openDeleteConfirmation(state, state.selectedRecord);
+        }
+    });
     root.querySelector('[data-action="expand-preview"]').addEventListener("click", () => openPreviewLightbox(state));
     root.querySelector('[data-action="settings"]').addEventListener("click", () => openSettings(state));
     const previewLightbox = root.querySelector('[data-role="preview-lightbox"]');
@@ -233,6 +267,18 @@ function openGallery(node) {
     });
     settingsDialog.querySelector('[data-action="reset-preview-settings"]').addEventListener("click", () => {
         setPreviewLineWidth(state, 1);
+    });
+    const deleteConfirmation = root.querySelector('[data-role="delete-confirmation"]');
+    deleteConfirmation.querySelector('[data-action="cancel-delete"]').addEventListener("click", () => closeDeleteConfirmation(state));
+    deleteConfirmation.querySelector('[data-action="confirm-delete"]').addEventListener("click", () => {
+        const record = state.pendingDeleteRecord;
+        if (!record) return;
+        closeDeleteConfirmation(state, false);
+        root.querySelector('[data-role="search"]').focus({ preventScroll: true });
+        void deleteSelectedRecord(state, record);
+    });
+    deleteConfirmation.addEventListener("click", (event) => {
+        if (event.target === deleteConfirmation) closeDeleteConfirmation(state);
     });
     root.querySelector('[data-action="view-mode"]').addEventListener("click", () => {
         const index = GALLERY_VIEW_MODES.indexOf(state.viewMode);
@@ -257,6 +303,11 @@ function openGallery(node) {
     state.keydownHandler = (event) => {
         if (!panel.contains(document.activeElement) || event.defaultPrevented || state.closing) return;
         if (event.key === "Escape") {
+            if (state.deleteConfirmOpen) {
+                event.preventDefault();
+                closeDeleteConfirmation(state);
+                return;
+            }
             if (state.settingsOpen) {
                 event.preventDefault();
                 closeSettings(state);
@@ -279,11 +330,13 @@ function openGallery(node) {
             return;
         }
         if (event.key !== "Tab") return;
-        const focusScope = state.settingsOpen
-            ? state.root.querySelector('[data-role="settings-dialog"]')
-            : state.previewExpanded
-                ? state.root.querySelector('[data-role="preview-lightbox"]')
-                : panel;
+        const focusScope = state.deleteConfirmOpen
+            ? state.root.querySelector('[data-role="delete-confirmation"]')
+            : state.settingsOpen
+                ? state.root.querySelector('[data-role="settings-dialog"]')
+                : state.previewExpanded
+                    ? state.root.querySelector('[data-role="preview-lightbox"]')
+                    : panel;
         const focusable = Array.from(focusScope.querySelectorAll(
             'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]',
         )).filter((element) => !element.hidden && element.getClientRects().length > 0);
@@ -407,12 +460,18 @@ async function loadRecords(state) {
 }
 
 async function selectRecord(state, recordId) {
+    if (state.deletingRecordId === String(recordId)) return;
     const requestId = ++state.selectionRequestId;
-    state.root.querySelector('[data-action="use-record"]').disabled = true;
+    state.selectionPending = true;
+    state.selectionTargetRecordId = String(recordId);
+    updateRecordActions(state);
     try {
         const record = await jsonRequest(`/mincore/pose_gallery/records/${recordId}`);
         if (requestId !== state.selectionRequestId || state.closing) return;
+        state.selectionPending = false;
+        state.selectionTargetRecordId = null;
         state.selectedRecord = record;
+        updateRecordActions(state);
         state.root.querySelectorAll(".mcore-pg-gallery-item").forEach((item) => {
             const isSelected = String(item.dataset.recordId) === String(recordId);
             item.classList.toggle("is-selected", isSelected);
@@ -421,15 +480,70 @@ async function selectRecord(state, recordId) {
         showRecord(state, record);
     } catch (error) {
         if (requestId !== state.selectionRequestId || state.closing) return;
-        state.root.querySelector('[data-action="use-record"]').disabled = !state.selectedRecord;
+        state.selectionPending = false;
+        state.selectionTargetRecordId = null;
+        updateRecordActions(state);
         toast("error", "Pose Gallery", String(error));
+    }
+}
+
+function updateRecordActions(state) {
+    const busy = state.selectionPending || state.deletingRecordId != null || state.usingRecord;
+    state.root.querySelector('[data-action="use-record"]').disabled = !state.selectedRecord || busy;
+    state.root.querySelector('[data-action="delete-record"]').disabled = !state.selectedRecord || busy;
+}
+
+async function deleteSelectedRecord(state, record) {
+    if (!record || state.deletingRecordId != null || state.selectionPending || state.usingRecord) return;
+    const recordId = String(record.id);
+    const name = record.name || "Untitled record";
+
+    state.deletingRecordId = recordId;
+    updateRecordActions(state);
+    try {
+        await jsonRequest(`/mincore/pose_gallery/records/${encodeURIComponent(recordId)}`, { method: "DELETE" });
+        state.records = state.records.filter((item) => String(item.id) !== recordId);
+        if (state.selectionTargetRecordId === recordId) {
+            state.selectionRequestId += 1;
+            state.selectionPending = false;
+            state.selectionTargetRecordId = null;
+        }
+
+        const nodeState = state.node._poseGalleryState;
+        const selectedWasDeleted = String(state.selectedRecord?.id) === recordId;
+        if (nodeState?.source === "gallery" && String(nodeState.record_id) === recordId) {
+            state.node._poseGalleryState = { ...nodeState, source: "inputs", record_id: "" };
+        }
+        if (String(readWidget(state.node, "gallery_record_id")) === recordId) {
+            setWidget(state.node, "gallery_record_id", "");
+            if (readWidget(state.node, "output_source") === "gallery") {
+                setWidget(state.node, "output_source", "inputs");
+            }
+        }
+
+        if (selectedWasDeleted) {
+            state.selectionRequestId += 1;
+            state.selectionPending = false;
+            state.selectedRecord = null;
+            if (state.node._poseGalleryState) showNodeState(state, state.node._poseGalleryState);
+            else showCurrentState(state, {});
+        }
+        renderGalleryRecords(state);
+        toast("success", "Pose Gallery", `Deleted: ${name}`);
+    } catch (error) {
+        toast("error", "Pose Gallery", String(error));
+    } finally {
+        if (state.deletingRecordId === recordId) state.deletingRecordId = null;
+        updateRecordActions(state);
     }
 }
 
 function showCurrentState(state, preview) {
     state.selectionRequestId += 1;
+    state.selectionPending = false;
+    state.selectionTargetRecordId = null;
     state.selectedRecord = null;
-    state.root.querySelector('[data-action="use-record"]').disabled = true;
+    updateRecordActions(state);
     state.root.querySelectorAll(".mcore-pg-gallery-item.is-selected").forEach((item) => {
         item.classList.remove("is-selected");
         item.setAttribute("aria-pressed", "false");
@@ -485,10 +599,10 @@ async function saveCurrent(state) {
 }
 
 async function useSelectedRecord(state) {
-    if (!state.selectedRecord) return;
+    if (!state.selectedRecord || state.deletingRecordId != null || state.selectionPending || state.usingRecord) return;
     const selectedRecord = state.selectedRecord;
-    const button = state.root.querySelector('[data-action="use-record"]');
-    button.disabled = true;
+    state.usingRecord = true;
+    updateRecordActions(state);
     try {
         setWidget(state.node, "gallery_record_id", selectedRecord.id);
         setWidget(state.node, "output_source", "gallery");
@@ -497,7 +611,8 @@ async function useSelectedRecord(state) {
     } catch (error) {
         toast("error", "Pose Gallery", String(error));
     } finally {
-        button.disabled = !state.selectedRecord;
+        state.usingRecord = false;
+        updateRecordActions(state);
     }
 }
 
