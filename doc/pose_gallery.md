@@ -5,7 +5,8 @@
 Pose Gallery Min stores pose records locally: an optional source image, pose
 JSON, any number of masks, general tags, and tags for each person. Open the
 gallery from the node button or its context menu. It starts with an empty
-`Default` collection; additional collections can be created in the gallery.
+`Default` collection; additional collections can be created with an in-gallery
+dialog.
 The node's **Open Pose Gallery** button stays compact and centered, regardless
 of the node's image preview size.
 

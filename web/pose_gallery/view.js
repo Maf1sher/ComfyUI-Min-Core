@@ -168,6 +168,21 @@ export function buildGalleryHtml(headingId) {
                     </form>
                 </section>
             </div>
+            <div class="mcore-pg-confirm-dialog" data-role="new-collection-dialog" role="dialog" aria-modal="true" aria-labelledby="${headingId}-collection-title" aria-describedby="${headingId}-collection-help" hidden>
+                <section class="mcore-pg-confirm-panel">
+                    <div class="mcore-pg-eyebrow">Pose Gallery</div>
+                    <h2 class="mcore-pg-confirm-title" id="${headingId}-collection-title">New collection</h2>
+                    <form data-role="new-collection-form">
+                        <label class="mcore-pg-save-label" for="${headingId}-collection-name">Collection name</label>
+                        <input class="mcore-pg-save-input" id="${headingId}-collection-name" data-role="new-collection-name" type="text" maxlength="100" placeholder="Enter a name" autocomplete="off" aria-required="true">
+                        <p class="mcore-pg-save-help" id="${headingId}-collection-help">The new collection will be selected automatically.</p>
+                        <footer class="mcore-pg-confirm-actions">
+                            <button class="mcore-pg-button" data-action="cancel-new-collection" type="button">Cancel</button>
+                            <button class="mcore-pg-button mcore-pg-save-submit" type="submit">Create collection</button>
+                        </footer>
+                    </form>
+                </section>
+            </div>
         </div>
     `;
 }

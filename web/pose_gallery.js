@@ -136,6 +136,39 @@ function closeSaveDialog(state, restoreFocus = true) {
     if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
+function openNewCollectionDialog(state) {
+    const dialog = state.root.querySelector('[data-role="new-collection-dialog"]');
+    if (!dialog || state.newCollectionDialogOpen) return;
+    state.newCollectionDialogReturnFocus = document.activeElement;
+    state.newCollectionDialogOpen = true;
+    dialog.hidden = false;
+    const nameInput = dialog.querySelector('[data-role="new-collection-name"]');
+    nameInput.value = "";
+    nameInput.focus({ preventScroll: true });
+}
+
+function closeNewCollectionDialog(state, restoreFocus = true) {
+    const dialog = state.root.querySelector('[data-role="new-collection-dialog"]');
+    if (!dialog || !state.newCollectionDialogOpen) return;
+    state.newCollectionDialogOpen = false;
+    dialog.hidden = true;
+    const returnFocus = state.newCollectionDialogReturnFocus;
+    state.newCollectionDialogReturnFocus = null;
+    if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+}
+
+function submitNewCollectionDialog(state) {
+    if (!state.newCollectionDialogOpen) return;
+    const nameInput = state.root.querySelector('[data-role="new-collection-name"]');
+    const name = nameInput.value.trim();
+    if (!name) {
+        nameInput.focus({ preventScroll: true });
+        return;
+    }
+    closeNewCollectionDialog(state);
+    void createCollection(state, name);
+}
+
 function submitSaveDialog(state) {
     if (!state.saveDialogOpen || state.savingRecord) return;
     const name = state.root.querySelector('[data-role="save-name"]').value;
@@ -223,6 +256,8 @@ function openGallery(node) {
         deleteConfirmOpen: false,
         deleteConfirmReturnFocus: null,
         pendingDeleteRecord: null,
+        newCollectionDialogOpen: false,
+        newCollectionDialogReturnFocus: null,
         saveDialogOpen: false,
         saveDialogReturnFocus: null,
         savingRecord: false,
@@ -282,7 +317,7 @@ function openGallery(node) {
         if (event.target === backdrop) panel.close();
     });
     root.querySelector('[data-action="close"]').addEventListener("click", () => panel.close());
-    root.querySelector('[data-action="new-collection"]').addEventListener("click", () => createCollection(state));
+    root.querySelector('[data-action="new-collection"]').addEventListener("click", () => openNewCollectionDialog(state));
     root.querySelector('[data-action="save-current"]').addEventListener("click", () => openSaveDialog(state));
     root.querySelector('[data-action="use-record"]').addEventListener("click", () => useSelectedRecord(state));
     root.querySelector('[data-action="show-current-inputs"]').addEventListener("click", () => {
@@ -334,6 +369,15 @@ function openGallery(node) {
     saveDialog.addEventListener("click", (event) => {
         if (event.target === saveDialog) closeSaveDialog(state);
     });
+    const newCollectionDialog = root.querySelector('[data-role="new-collection-dialog"]');
+    newCollectionDialog.querySelector('[data-action="cancel-new-collection"]').addEventListener("click", () => closeNewCollectionDialog(state));
+    newCollectionDialog.querySelector('[data-role="new-collection-form"]').addEventListener("submit", (event) => {
+        event.preventDefault();
+        submitNewCollectionDialog(state);
+    });
+    newCollectionDialog.addEventListener("click", (event) => {
+        if (event.target === newCollectionDialog) closeNewCollectionDialog(state);
+    });
     root.querySelector('[data-action="view-mode"]').addEventListener("click", () => {
         const index = GALLERY_VIEW_MODES.indexOf(state.viewMode);
         setGalleryViewMode(state, GALLERY_VIEW_MODES[(index + 1) % GALLERY_VIEW_MODES.length]);
@@ -363,6 +407,11 @@ function openGallery(node) {
     state.keydownHandler = (event) => {
         if (!panel.contains(document.activeElement) || event.defaultPrevented || state.closing) return;
         if (event.key === "Escape") {
+            if (state.newCollectionDialogOpen) {
+                event.preventDefault();
+                closeNewCollectionDialog(state);
+                return;
+            }
             if (state.saveDialogOpen) {
                 event.preventDefault();
                 closeSaveDialog(state);
@@ -395,15 +444,17 @@ function openGallery(node) {
             return;
         }
         if (event.key !== "Tab") return;
-        const focusScope = state.saveDialogOpen
-            ? state.root.querySelector('[data-role="save-dialog"]')
-            : state.deleteConfirmOpen
-                ? state.root.querySelector('[data-role="delete-confirmation"]')
-                : state.settingsOpen
-                    ? state.root.querySelector('[data-role="settings-dialog"]')
-                    : state.previewExpanded
-                        ? state.root.querySelector('[data-role="preview-lightbox"]')
-                        : panel;
+        const focusScope = state.newCollectionDialogOpen
+            ? state.root.querySelector('[data-role="new-collection-dialog"]')
+            : state.saveDialogOpen
+                ? state.root.querySelector('[data-role="save-dialog"]')
+                : state.deleteConfirmOpen
+                    ? state.root.querySelector('[data-role="delete-confirmation"]')
+                    : state.settingsOpen
+                        ? state.root.querySelector('[data-role="settings-dialog"]')
+                        : state.previewExpanded
+                            ? state.root.querySelector('[data-role="preview-lightbox"]')
+                            : panel;
         const focusable = Array.from(focusScope.querySelectorAll(
             'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]',
         )).filter((element) => !element.hidden && element.getClientRects().length > 0);
@@ -477,9 +528,8 @@ async function refreshCollections(state) {
     await loadRecords(state);
 }
 
-async function createCollection(state) {
-    const name = window.prompt("New collection name");
-    if (name == null || !name.trim()) return;
+async function createCollection(state, name) {
+    if (!name?.trim()) return;
     try {
         const collection = await jsonRequest("/mincore/pose_gallery/collections", {
             method: "POST",
