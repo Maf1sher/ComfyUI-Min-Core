@@ -28,7 +28,7 @@ export function buildGalleryHtml(headingId) {
                             <div class="mcore-pg-gallery-details-row"><span>Saved</span><strong data-detail="created"></strong></div>
                             <div class="mcore-pg-gallery-details-row"><span>Masks</span><strong data-detail="masks"></strong></div>
                             <div class="mcore-pg-gallery-details-row"><span>General tags</span><strong class="mcore-pg-details-tags" data-detail="general-tags"></strong></div>
-                            <div class="mcore-pg-gallery-details-row" data-role="person-tags-row"><span>Person tags</span><strong class="mcore-pg-details-tags" data-detail="person-tags"></strong></div>
+                            <div data-role="person-tags-row" hidden></div>
                         </div>
                     </div>
                 </div>

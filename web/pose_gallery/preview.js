@@ -406,7 +406,22 @@ export function updateRecordDetails(state, record) {
     setDetail("created", record.created ? new Date(record.created).toLocaleString() : "—");
     setDetail("masks", String(record.mask_count || 0));
     setDetail("general-tags", record.general_tags || "—");
-    const personTags = (record.person_tags || []).map((tag, index) => `Person ${index + 1}: ${tag || "—"}`).join("\n");
-    setDetail("person-tags", personTags || "—");
-    state.root.querySelector('[data-role="person-tags-row"]').hidden = !personTags;
+    const personTags = Array.isArray(record.person_tags) ? record.person_tags : [];
+    const personTagsContainer = state.root.querySelector('[data-role="person-tags-row"]');
+    personTagsContainer.replaceChildren();
+    personTags.forEach((tag, index) => {
+        const row = document.createElement("div");
+        row.className = "mcore-pg-gallery-details-row mcore-pg-person-tag-row";
+
+        const label = document.createElement("span");
+        label.textContent = `Person ${index + 1} tags`;
+
+        const value = document.createElement("strong");
+        value.className = "mcore-pg-details-tags";
+        value.textContent = tag == null || String(tag).trim() === "" ? "—" : String(tag);
+
+        row.append(label, value);
+        personTagsContainer.appendChild(row);
+    });
+    personTagsContainer.hidden = !personTags.length;
 }
