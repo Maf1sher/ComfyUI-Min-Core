@@ -77,9 +77,9 @@ preview uses a square frame. Its layer controls remain fully visible while
 long record details scroll independently. Use its expand button to inspect the
 image in a larger overlay without changing the record list layout. The layer
 controls sit below the expanded image so they do not cover it.
-Side-panel actions are grouped below the preview, with **Use this record**
-emphasized as the primary action and current-input and delete actions arranged
-as secondary controls.
+The side panel keeps **Use this record** as its primary action and
+**Show current inputs** as a secondary control. Record management actions are
+in the gallery toolbar and apply to the currently selected record.
 General tags are shown separately from per-person tags. Each person's tags are
 shown in their own detail row, using the same right-aligned tag styling as the
 other record details. The record details also show the source image resolution
@@ -97,14 +97,13 @@ Record thumbnails load as they approach the visible area. The gallery renders
 up to 48 cards per page, and reuses generated 360 × 270 thumbnails instead of
 downloading full-resolution layers for every card. Collection loading shows
 progress and offers a retry if the request fails.
-Select a record and use **Delete record** in the side panel to permanently remove
-it and its stored files. A confirmation dialog opens inside the gallery. If the
-deleted record is currently selected as the node output, the node switches back
-to its connected inputs.
-Use **Move to collection** to change the selected record's collection without
-deleting or copying its data. Choose a destination in the dialog; the gallery
-then opens that collection with the record selected. Its ID and current node
-output stay unchanged.
+Select a record, then use **Delete record** in the gallery toolbar to permanently
+remove it and its stored files. A confirmation dialog opens inside the gallery.
+If the deleted record is currently selected as the node output, the node switches
+back to its connected inputs. Use **Move to collection** in the toolbar to change
+the selected record's collection without deleting or copying its data. Choose a
+destination in the dialog; the gallery then opens that collection with the record
+selected. Its ID and current node output stay unchanged.
 
 ## Outputs
 

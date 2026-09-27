@@ -463,7 +463,6 @@ export function setPreviewSource(state, preview) {
     updateRecordDetails(state, preview.record || null);
     const actionsBusy = state.selectionPending || state.deletingRecordId != null || state.usingRecord;
     state.root.querySelector('[data-action="use-record"]').disabled = !state.selectedRecord || actionsBusy;
-    state.root.querySelector('[data-action="delete-record"]').disabled = !state.selectedRecord || actionsBusy;
 }
 
 function loadPreviewLayer(state, layer, revision) {

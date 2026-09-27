@@ -55,8 +55,6 @@ export function buildGalleryHtml(headingId) {
                     <div class="mcore-pg-record-actions" role="group" aria-label="Record actions">
                         <button class="mcore-pg-button mcore-pg-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
                         <button class="mcore-pg-button mcore-pg-current-inputs" data-action="show-current-inputs" type="button">Show current inputs</button>
-                        <button class="mcore-pg-button" data-action="move-record" type="button" disabled>Move to collection</button>
-                        <button class="mcore-pg-button mcore-pg-delete-record" data-action="delete-record" type="button" disabled>Delete record</button>
                     </div>
                     <div class="mcore-pg-gallery-details">
                         <div class="mcore-pg-gallery-details-empty" data-role="details-empty">Select a record to inspect its image, pose, masks, and tags.</div>
@@ -102,6 +100,10 @@ export function buildGalleryHtml(headingId) {
                                     </div>
                                     <span class="mcore-pg-gallery-stats-badge mcore-pg-gallery-header-ctrl" data-role="stats">0 records</span>
                                     <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-view" data-action="view-mode" type="button">View: medium</button>
+                                </div>
+                                <div class="mcore-pg-toolbar-group mcore-pg-selected-record-tools" role="group" aria-label="Selected record actions">
+                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="move-record" type="button" disabled>Move to collection</button>
+                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-delete-record" data-action="delete-record" type="button" disabled>Delete record</button>
                                 </div>
                                 <div class="mcore-pg-toolbar-group mcore-pg-record-layer-tools" role="group" aria-label="Layers shown on record cards">
                                     <span class="mcore-pg-record-layer-heading">Card layers</span>
