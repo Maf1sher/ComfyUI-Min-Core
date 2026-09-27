@@ -41,6 +41,15 @@ node output already uses inputs, the button reads **Refresh current inputs**.
 Both paths display the same details. **Show node output** returns to the current
 output preview.
 
+## Node preview
+
+The node preview combines the image, rendered OpenPose, and masks. Use the
+**Show Image**, **Show OpenPose**, and **Show Masks** Boolean widgets to choose
+which layers appear; image and OpenPose are enabled by default, while masks are
+hidden. **Show Masks** toggles all masks together. These settings only affect
+the node preview, not its output sockets or saved gallery records. Run the node
+again after changing a setting to refresh the preview.
+
 ## Gallery preview
 
 The detail preview layers the source image, rendered pose, and each mask. Image

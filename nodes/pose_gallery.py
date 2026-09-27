@@ -154,6 +154,89 @@ def _manifest_preview_array(array: np.ndarray, channels: int | None = None) -> n
     return np.clip(array * 255.0, 0, 255).astype(np.uint8)
 
 
+def _preview_rgb_array(tensor: torch.Tensor | None) -> np.ndarray | None:
+    if not torch.is_tensor(tensor):
+        return None
+    array = tensor.detach().to(device="cpu", dtype=torch.float32).numpy()
+    if array.ndim == 4:
+        array = array[0]
+    if array.ndim == 2:
+        array = np.repeat(array[..., None], 3, axis=-1)
+    if array.ndim != 3 or array.shape[-1] < 3:
+        return None
+    return np.clip(array[..., :3] * 255.0, 0, 255).astype(np.uint8)
+
+
+def _preview_mask_array(tensor: torch.Tensor) -> np.ndarray | None:
+    if not torch.is_tensor(tensor):
+        return None
+    array = tensor.detach().to(device="cpu", dtype=torch.float32).numpy()
+    if array.ndim == 4:
+        array = array[0, 0]
+    elif array.ndim == 3:
+        array = array[0]
+    if array.ndim != 2:
+        return None
+    return np.clip(array * 255.0, 0, 255).astype(np.uint8)
+
+
+def _compose_node_preview(
+    image: torch.Tensor | None,
+    pose_image: torch.Tensor,
+    masks: list[torch.Tensor],
+    show_image: bool,
+    show_openpose: bool,
+    show_masks: bool,
+) -> np.ndarray:
+    image_array = _preview_rgb_array(image)
+    pose_array = _preview_rgb_array(pose_image)
+    mask_arrays = [_preview_mask_array(mask) for mask in masks]
+    reference_shape = next(
+        (array.shape[:2] for array in (image_array, pose_array, *mask_arrays) if array is not None),
+        (512, 512),
+    )
+    height, width = reference_shape
+    size = (width, height)
+    resampling = getattr(PILImage, "Resampling", PILImage).LANCZOS
+    canvas = PILImage.new("RGBA", size, (0, 0, 0, 255))
+
+    if show_image and image_array is not None:
+        layer = PILImage.fromarray(image_array, "RGB")
+        if layer.size != size:
+            layer = layer.resize(size, resampling)
+        canvas.alpha_composite(layer.convert("RGBA"))
+
+    if show_openpose and pose_array is not None:
+        intensity = np.max(pose_array, axis=-1)
+        divisor = np.maximum(intensity, 1)[..., None]
+        rgb = np.clip(pose_array.astype(np.float32) * (255.0 / divisor), 0, 255).astype(np.uint8)
+        alpha = np.minimum(255, np.round(intensity.astype(np.float32) / 0.6)).astype(np.uint8)
+        pose_rgba = np.concatenate((rgb, alpha[..., None]), axis=-1)
+        layer = PILImage.fromarray(pose_rgba, "RGBA")
+        if layer.size != size:
+            layer = layer.resize(size, resampling)
+        canvas.alpha_composite(layer)
+
+    if show_masks:
+        mask_colors = (
+            (255, 80, 80), (70, 170, 255), (100, 230, 120),
+            (255, 190, 60), (210, 100, 255), (50, 220, 210),
+        )
+        for index, mask_array in enumerate(mask_arrays):
+            if mask_array is None:
+                continue
+            mask_layer = PILImage.fromarray(mask_array, "L")
+            if mask_layer.size != size:
+                mask_layer = mask_layer.resize(size, resampling)
+            intensity = np.asarray(mask_layer, dtype=np.uint8)
+            rgba = np.empty((height, width, 4), dtype=np.uint8)
+            rgba[..., :3] = mask_colors[index % len(mask_colors)]
+            rgba[..., 3] = np.round(intensity.astype(np.float32) * 0.52).astype(np.uint8)
+            canvas.alpha_composite(PILImage.fromarray(rgba, "RGBA"))
+
+    return np.asarray(canvas.convert("RGB"))
+
+
 def _save_record(
     collection_id: str,
     name: str,
@@ -234,6 +317,9 @@ def _save_temp_preview(
     pose_image: torch.Tensor,
     masks: list[torch.Tensor],
     scope: str = "output",
+    show_image: bool = True,
+    show_openpose: bool = True,
+    show_masks: bool = False,
 ) -> dict:
     safe_node_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(node_id))
     subfolder = os.path.join("MinCorePoseGallery", safe_node_id).replace("\\", "/")
@@ -258,10 +344,20 @@ def _save_temp_preview(
             PILImage.fromarray(array, "RGB").save(os.path.join(directory, filename))
         return {"filename": filename, "subfolder": subfolder, "type": "temp"}
 
+    node_preview = _compose_node_preview(
+        image,
+        pose_image,
+        masks,
+        show_image,
+        show_openpose,
+        show_masks,
+    )
+    PILImage.fromarray(node_preview, "RGB").save(os.path.join(directory, "preview.png"))
     return {
         "image": save_tensor(image, "image.png") if image is not None else None,
         "pose": save_tensor(pose_image, "pose.png"),
         "masks": [save_tensor(mask, f"mask_{index:04d}.png", mask=True) for index, mask in enumerate(masks)],
+        "node_preview": {"filename": "preview.png", "subfolder": subfolder, "type": "temp"},
     }
 
 
@@ -285,8 +381,8 @@ class _PoseGalleryUI(_UIOutput):
             "pose_gallery_capture": [self.capture] if self.capture else [],
             "pose_gallery_current_inputs": [self.current_inputs] if self.current_inputs else [],
         }
-        if self.preview.get("image") is not None:
-            result["images"] = [self.preview["image"]]
+        if self.preview.get("node_preview") is not None:
+            result["images"] = [self.preview["node_preview"]]
         return result
 
 
@@ -515,6 +611,27 @@ class MinCore_PoseGallery(io.ComfyNode):
                                 tooltip="Tags describing the complete image/pose record."),
                 io.Autogrow.Input("person_tags", template=person_tag_template, optional=True,
                                   tooltip="Dynamic tags for each person, in pose JSON order."),
+                io.Boolean.Input(
+                    "show_image",
+                    display_name="Show Image",
+                    default=True,
+                    socketless=True,
+                    tooltip="Show or hide the source image in the node preview.",
+                ),
+                io.Boolean.Input(
+                    "show_openpose",
+                    display_name="Show OpenPose",
+                    default=True,
+                    socketless=True,
+                    tooltip="Show or hide the rendered pose in the node preview.",
+                ),
+                io.Boolean.Input(
+                    "show_masks",
+                    display_name="Show Masks",
+                    default=False,
+                    socketless=True,
+                    tooltip="Show or hide all masks in the node preview.",
+                ),
                 io.Combo.Input("output_source", options=["inputs", "gallery"], default="inputs",
                                tooltip="Choose the connected inputs or the selected gallery record."),
                 io.String.Input("gallery_collection_id", default="default", socketless=True),
@@ -543,10 +660,24 @@ class MinCore_PoseGallery(io.ComfyNode):
         )
 
     @classmethod
-    def fingerprint_inputs(cls, output_source="inputs", gallery_record_id="", **_kwargs):
+    def fingerprint_inputs(
+        cls,
+        output_source="inputs",
+        gallery_record_id="",
+        show_image=True,
+        show_openpose=True,
+        show_masks=False,
+        **_kwargs,
+    ):
         node_id = str(cls.hidden.unique_id)
         capture = _pending_captures.get(node_id)
-        parts = [str(output_source), str(gallery_record_id)]
+        parts = [
+            str(output_source),
+            str(gallery_record_id),
+            str(bool(show_image)),
+            str(bool(show_openpose)),
+            str(bool(show_masks)),
+        ]
         parts.append(capture["token"] if capture else _last_capture_tokens.get(node_id, ""))
         if output_source == "gallery" and gallery_record_id:
             try:
@@ -589,6 +720,9 @@ class MinCore_PoseGallery(io.ComfyNode):
         masks=None,
         general_tags="",
         person_tags=None,
+        show_image=True,
+        show_openpose=True,
+        show_masks=False,
         output_source="inputs",
         gallery_collection_id="default",
         gallery_record_id="",
@@ -698,7 +832,15 @@ class MinCore_PoseGallery(io.ComfyNode):
                 "mask_count": len(current_masks),
             }
 
-        preview = _save_temp_preview(node_id, image, pose_image, masks_out)
+        preview = _save_temp_preview(
+            node_id,
+            image,
+            pose_image,
+            masks_out,
+            show_image=bool(show_image),
+            show_openpose=bool(show_openpose),
+            show_masks=bool(show_masks),
+        )
         state = {
             "source": output_source,
             "record_id": gallery_record_id if output_source == "gallery" else "",
