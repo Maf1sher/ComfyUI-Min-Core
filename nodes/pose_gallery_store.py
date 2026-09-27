@@ -6,6 +6,7 @@ import re
 import shutil
 import time
 import uuid
+from typing import TypedDict
 
 import numpy as np
 import torch
@@ -15,8 +16,55 @@ import folder_paths
 from .openpose_studio import render_pose_image
 
 
+__all__ = [
+    "Collection",
+    "RecordManifest",
+    "RecordSummary",
+    "collections_path",
+    "find_collection",
+    "is_valid_image",
+    "list_records",
+    "load_record",
+    "manifest_preview_array",
+    "read_collections",
+    "read_manifest",
+    "record_dir",
+    "save_record",
+    "write_json",
+]
+
 _RECORD_ID = re.compile(r"^[0-9a-f]{32}$")
 _COLLECTION_ID = re.compile(r"^(default|[0-9a-f]{32})$")
+
+
+class Collection(TypedDict):
+    id: str
+    name: str
+
+
+class RecordManifest(TypedDict, total=False):
+    id: str
+    name: str
+    collection_id: str
+    created: str
+    pose_json: str
+    general_tags: str
+    person_tags: list[str]
+    mask_count: int
+    has_image: bool
+    image_shape: list[int]
+    assets: dict[str, str | list[str] | None]
+
+
+class RecordSummary(TypedDict):
+    id: str
+    name: str
+    collection_id: str
+    general_tags: str
+    person_tags: list[str]
+    mask_count: int
+    has_image: bool
+    created: str
 
 
 def _gallery_root() -> str:
@@ -27,11 +75,11 @@ def _entries_root() -> str:
     return os.path.join(_gallery_root(), "entries")
 
 
-def _collections_path() -> str:
+def collections_path() -> str:
     return os.path.join(_gallery_root(), "collections.json")
 
 
-def _write_json(path: str, payload: dict) -> None:
+def write_json(path: str, payload: dict) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     temporary_path = f"{path}.{uuid.uuid4().hex}.tmp"
     with open(temporary_path, "w", encoding="utf-8") as file:
@@ -39,11 +87,11 @@ def _write_json(path: str, payload: dict) -> None:
     os.replace(temporary_path, path)
 
 
-def _read_collections() -> list[dict]:
+def read_collections() -> list[Collection]:
     os.makedirs(_gallery_root(), exist_ok=True)
-    path = _collections_path()
+    path = collections_path()
     if not os.path.isfile(path):
-        _write_json(path, {"collections": [{"id": "default", "name": "Default"}]})
+        write_json(path, {"collections": [{"id": "default", "name": "Default"}]})
     with open(path, "r", encoding="utf-8") as file:
         data = json.load(file)
     collections = data.get("collections", [])
@@ -51,17 +99,17 @@ def _read_collections() -> list[dict]:
         raise ValueError("Invalid gallery collection index")
     if not any(item.get("id") == "default" for item in collections if isinstance(item, dict)):
         collections.insert(0, {"id": "default", "name": "Default"})
-        _write_json(path, {"collections": collections})
+        write_json(path, {"collections": collections})
     return collections
 
 
-def _find_collection(collection_id: str) -> dict | None:
+def find_collection(collection_id: str) -> Collection | None:
     if not isinstance(collection_id, str) or not _COLLECTION_ID.fullmatch(collection_id):
         return None
-    return next((item for item in _read_collections() if isinstance(item, dict) and item.get("id") == collection_id), None)
+    return next((item for item in read_collections() if isinstance(item, dict) and item.get("id") == collection_id), None)
 
 
-def _record_dir(record_id: str) -> str:
+def record_dir(record_id: str) -> str:
     if not isinstance(record_id, str) or not _RECORD_ID.fullmatch(record_id):
         raise ValueError("Invalid gallery record ID")
     root = os.path.realpath(_entries_root())
@@ -71,8 +119,8 @@ def _record_dir(record_id: str) -> str:
     return path
 
 
-def _read_manifest(record_id: str) -> dict | None:
-    path = os.path.join(_record_dir(record_id), "record.json")
+def read_manifest(record_id: str) -> RecordManifest | None:
+    path = os.path.join(record_dir(record_id), "record.json")
     if not os.path.isfile(path):
         return None
     with open(path, "r", encoding="utf-8") as file:
@@ -82,17 +130,17 @@ def _read_manifest(record_id: str) -> dict | None:
     return manifest
 
 
-def _list_records(collection_id: str | None = None) -> list[dict]:
-    if collection_id is not None and _find_collection(collection_id) is None:
+def list_records(collection_id: str | None = None) -> list[RecordSummary]:
+    if collection_id is not None and find_collection(collection_id) is None:
         raise ValueError("Unknown gallery collection")
-    records = []
+    records: list[RecordSummary] = []
     if not os.path.isdir(_entries_root()):
         return records
     for entry in os.scandir(_entries_root()):
         if not entry.is_dir() or not _RECORD_ID.fullmatch(entry.name):
             continue
         try:
-            manifest = _read_manifest(entry.name)
+            manifest = read_manifest(entry.name)
         except (OSError, ValueError, json.JSONDecodeError):
             continue
         if manifest is None or (collection_id and manifest.get("collection_id") != collection_id):
@@ -117,7 +165,7 @@ def _as_float_array(value: torch.Tensor) -> np.ndarray:
     return value.detach().to(device="cpu", dtype=torch.float32).numpy().copy()
 
 
-def _manifest_preview_array(array: np.ndarray, channels: int | None = None) -> np.ndarray:
+def manifest_preview_array(array: np.ndarray, channels: int | None = None) -> np.ndarray:
     if array.ndim == 4:
         array = array[0]
     elif array.ndim == 3 and channels is None:
@@ -127,11 +175,11 @@ def _manifest_preview_array(array: np.ndarray, channels: int | None = None) -> n
     return np.clip(array * 255.0, 0, 255).astype(np.uint8)
 
 
-def _is_valid_image(image: torch.Tensor | None) -> bool:
+def is_valid_image(image: torch.Tensor | None) -> bool:
     return torch.is_tensor(image) and image.ndim == 4 and image.shape[-1] >= 3
 
 
-def _save_record(
+def save_record(
     collection_id: str,
     name: str,
     image: torch.Tensor | None,
@@ -139,15 +187,15 @@ def _save_record(
     masks: list[torch.Tensor],
     general_tags: str,
     person_tags: list[str],
-) -> dict:
-    collection = _find_collection(collection_id)
+) -> RecordManifest:
+    collection = find_collection(collection_id)
     if collection is None:
         raise ValueError("Unknown gallery collection")
-    if image is not None and not _is_valid_image(image):
+    if image is not None and not is_valid_image(image):
         raise ValueError("Pose Gallery: IMAGE input must be a valid IMAGE tensor.")
 
     record_id = uuid.uuid4().hex
-    directory = _record_dir(record_id)
+    directory = record_dir(record_id)
     os.makedirs(directory, exist_ok=False)
     try:
         arrays = {}
@@ -158,11 +206,11 @@ def _save_record(
         np.savez_compressed(os.path.join(directory, "data.npz"), **arrays)
 
         if image is not None:
-            image_preview = _manifest_preview_array(arrays["image"], channels=3)
+            image_preview = manifest_preview_array(arrays["image"], channels=3)
             PILImage.fromarray(image_preview, "RGB").save(os.path.join(directory, "image.png"))
 
         pose_array = render_pose_image(pose_json)
-        PILImage.fromarray(_manifest_preview_array(pose_array, channels=3), "RGB").save(
+        PILImage.fromarray(manifest_preview_array(pose_array, channels=3), "RGB").save(
             os.path.join(directory, "pose.png")
         )
         for index, mask in enumerate(masks):
@@ -176,7 +224,7 @@ def _save_record(
                 os.path.join(directory, f"mask_{index:04d}.png")
             )
 
-        manifest = {
+        manifest: RecordManifest = {
             "id": record_id,
             "name": name.strip()[:120] or time.strftime("Record %Y-%m-%d %H:%M:%S"),
             "collection_id": collection_id,
@@ -188,18 +236,18 @@ def _save_record(
             "has_image": image is not None,
             "image_shape": list(arrays["image"].shape) if image is not None else [],
         }
-        _write_json(os.path.join(directory, "record.json"), manifest)
+        write_json(os.path.join(directory, "record.json"), manifest)
         return manifest
     except Exception:
         shutil.rmtree(directory, ignore_errors=True)
         raise
 
 
-def _load_record(record_id: str) -> tuple[dict, torch.Tensor | None, list[torch.Tensor]]:
-    manifest = _read_manifest(record_id)
+def load_record(record_id: str) -> tuple[RecordManifest, torch.Tensor | None, list[torch.Tensor]]:
+    manifest = read_manifest(record_id)
     if manifest is None:
         raise FileNotFoundError("Pose Gallery: the selected record no longer exists.")
-    data_path = os.path.join(_record_dir(record_id), "data.npz")
+    data_path = os.path.join(record_dir(record_id), "data.npz")
     with np.load(data_path, allow_pickle=False) as data:
         image = (
             torch.from_numpy(np.array(data["image"], dtype=np.float32, copy=True))

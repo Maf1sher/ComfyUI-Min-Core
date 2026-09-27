@@ -1,20 +1,7 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 import { jsonRequest, queueNode, toast } from "./pose_gallery/api.js";
-import {
-    closeDeleteConfirmation,
-    closeNewCollectionDialog,
-    closePreviewLightbox,
-    closeSaveDialog,
-    closeSettings,
-    openDeleteConfirmation,
-    openNewCollectionDialog,
-    openPreviewLightbox,
-    openSaveDialog,
-    openSettings,
-    submitNewCollectionDialog,
-    submitSaveDialog,
-} from "./pose_gallery/dialogs.js";
+import { applyPanelLayout, bindPanelEvents } from "./pose_gallery/panel_events.js";
 import {
     getStoredPreviewLineWidth,
     resizePreviewCanvas,
@@ -26,15 +13,16 @@ import {
     createThumbnailObserver,
     getStoredThumbnailLayerVisibility,
     getStoredViewMode,
-    GALLERY_VIEW_MODES,
     renderRecords,
-    setThumbnailLayerVisibility,
     setGalleryViewMode,
     syncThumbnailLayerControls,
 } from "./pose_gallery/view.js";
 
 const NODE_TYPE = "MinCore_PoseGallery";
 const STYLE_ID = "mincore-pose-gallery-stylesheet";
+
+/** @typedef {import("./pose_gallery/types.js").GalleryRecord} GalleryRecord */
+/** @typedef {import("./pose_gallery/types.js").GalleryPanelState} GalleryPanelState */
 
 function installStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -57,6 +45,7 @@ function setWidget(node, name, value) {
     node.setDirtyCanvas?.(true, true);
 }
 
+/** @param {GalleryPanelState} state */
 function renderGalleryRecords(state) {
     renderRecords(state, {
         onSelect: (recordId) => selectRecord(state, recordId),
@@ -64,51 +53,16 @@ function renderGalleryRecords(state) {
     });
 }
 
-function applyPanelLayout(panel) {
-    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1280;
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
-    const margin = viewportWidth <= 900 ? 12 : 28;
-    const width = Math.max(0, Math.min(viewportWidth - margin * 2, 1700));
-    const height = Math.max(0, viewportHeight - margin * 2);
-    const left = Math.max(0, Math.floor((viewportWidth - width) / 2));
-    panel.style.setProperty("width", `${Math.floor(width)}px`, "important");
-    panel.style.setProperty("height", `${Math.floor(height)}px`, "important");
-    panel.style.setProperty("left", `${left}px`, "important");
-    panel.style.setProperty("top", `${margin}px`, "important");
-}
-
-
-function openGallery(node) {
-    if (node._poseGalleryPanel) {
-        node._poseGalleryPanel.panel.focus?.();
-        return;
-    }
-    installStyles();
-    const graphCanvas = LiteGraph.LGraphCanvas.active_canvas;
-    if (!graphCanvas) return;
-    const restoreFocus = document.activeElement;
-    const headingId = `mcore-pg-heading-${node.id}`;
-
-    const backdrop = document.createElement("div");
-    backdrop.className = "mcore-pg-backdrop";
-    document.body.appendChild(backdrop);
-    const panel = graphCanvas.createPanel("Pose Gallery Min", { closable: true });
-    panel.classList.add("mcore-pg-panel", "mcore-pg-modal");
-    panel.setAttribute("role", "dialog");
-    panel.setAttribute("aria-modal", "true");
-    panel.setAttribute("aria-labelledby", headingId);
-    panel.tabIndex = -1;
-    const header = panel.header || panel.querySelector(".dialog-header");
-    header?.classList.add("mcore-pg-native-header");
-    const closeButton = header?.querySelector(".close");
-    closeButton?.classList.add("mcore-pg-native-close");
-    const footer = panel.footer || panel.querySelector(".dialog-footer");
-    footer?.classList.add("mcore-pg-native-footer");
-    const root = panel.addHTML(buildGalleryHtml(headingId), "mcore-pg-panel-content");
-    applyPanelLayout(panel);
-    document.body.appendChild(panel);
-
-    const state = {
+/**
+ * @param {any} node
+ * @param {any} panel LiteGraph panel instance.
+ * @param {HTMLElement} backdrop
+ * @param {HTMLElement} root
+ * @param {Element | null} restoreFocus
+ * @returns {GalleryPanelState}
+ */
+function createPanelState(node, panel, backdrop, root, restoreFocus) {
+    return {
         node,
         panel,
         backdrop,
@@ -157,6 +111,40 @@ function openGallery(node) {
         keydownHandler: null,
         closing: false,
     };
+}
+
+
+function openGallery(node) {
+    if (node._poseGalleryPanel) {
+        node._poseGalleryPanel.panel.focus?.();
+        return;
+    }
+    installStyles();
+    const graphCanvas = LiteGraph.LGraphCanvas.active_canvas;
+    if (!graphCanvas) return;
+    const restoreFocus = document.activeElement;
+    const headingId = `mcore-pg-heading-${node.id}`;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "mcore-pg-backdrop";
+    document.body.appendChild(backdrop);
+    const panel = graphCanvas.createPanel("Pose Gallery Min", { closable: true });
+    panel.classList.add("mcore-pg-panel", "mcore-pg-modal");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", headingId);
+    panel.tabIndex = -1;
+    const header = panel.header || panel.querySelector(".dialog-header");
+    header?.classList.add("mcore-pg-native-header");
+    const closeButton = header?.querySelector(".close");
+    closeButton?.classList.add("mcore-pg-native-close");
+    const footer = panel.footer || panel.querySelector(".dialog-footer");
+    footer?.classList.add("mcore-pg-native-footer");
+    const root = panel.addHTML(buildGalleryHtml(headingId), "mcore-pg-panel-content");
+    applyPanelLayout(panel);
+    document.body.appendChild(panel);
+
+    const state = createPanelState(node, panel, backdrop, root, restoreFocus);
     node._poseGalleryPanel = state;
     state.thumbnailObserver = createThumbnailObserver(state);
     setGalleryViewMode(state, state.viewMode);
@@ -200,171 +188,17 @@ function openGallery(node) {
         panel.addEventListener("transitionend", closeTransitionHandler);
         closeTimer = window.setTimeout(finishClose, 260);
     };
-    backdrop.addEventListener("click", (event) => {
-        if (event.target === backdrop) panel.close();
+    bindPanelEvents(state, {
+        renderGalleryRecords,
+        useSelectedRecord,
+        toggleCurrentInputs,
+        deleteSelectedRecord,
+        showCurrentState,
+        loadRecords,
+        createCollection,
+        saveCurrent,
+        setWidget,
     });
-    root.querySelector('[data-action="close"]').addEventListener("click", () => panel.close());
-    root.querySelector('[data-action="new-collection"]').addEventListener("click", () => openNewCollectionDialog(state));
-    root.querySelector('[data-action="save-current"]').addEventListener("click", () => openSaveDialog(state));
-    root.querySelector('[data-action="use-record"]').addEventListener("click", () => useSelectedRecord(state));
-    root.querySelector('[data-action="show-current-inputs"]').addEventListener("click", () => {
-        void toggleCurrentInputs(state);
-    });
-    root.querySelector('[data-action="delete-record"]').addEventListener("click", () => {
-        if (!state.selectionPending && state.deletingRecordId == null && !state.loadingCurrentInputs && !state.saveQueued) {
-            openDeleteConfirmation(state, state.selectedRecord);
-        }
-    });
-    root.querySelector('[data-action="expand-preview"]').addEventListener("click", () => openPreviewLightbox(state));
-    root.querySelector('[data-action="settings"]').addEventListener("click", () => openSettings(state));
-    const previewLightbox = root.querySelector('[data-role="preview-lightbox"]');
-    previewLightbox.querySelector('[data-action="close-preview"]').addEventListener("click", () => closePreviewLightbox(state));
-    previewLightbox.addEventListener("click", (event) => {
-        if (event.target === previewLightbox) closePreviewLightbox(state);
-    });
-    const settingsDialog = root.querySelector('[data-role="settings-dialog"]');
-    settingsDialog.querySelectorAll('[data-action="close-settings"]').forEach((button) => {
-        button.addEventListener("click", () => closeSettings(state));
-    });
-    settingsDialog.addEventListener("click", (event) => {
-        if (event.target === settingsDialog) closeSettings(state);
-    });
-    settingsDialog.querySelector('[data-role="preview-line-width"]').addEventListener("input", (event) => {
-        setPreviewLineWidth(state, Number(event.target.value) / 100);
-    });
-    settingsDialog.querySelector('[data-action="reset-preview-settings"]').addEventListener("click", () => {
-        setPreviewLineWidth(state, 1);
-    });
-    const deleteConfirmation = root.querySelector('[data-role="delete-confirmation"]');
-    deleteConfirmation.querySelector('[data-action="cancel-delete"]').addEventListener("click", () => closeDeleteConfirmation(state));
-    deleteConfirmation.querySelector('[data-action="confirm-delete"]').addEventListener("click", () => {
-        const record = state.pendingDeleteRecord;
-        if (!record) return;
-        closeDeleteConfirmation(state, false);
-        root.querySelector('[data-role="search"]').focus({ preventScroll: true });
-        void deleteSelectedRecord(state, record);
-    });
-    deleteConfirmation.addEventListener("click", (event) => {
-        if (event.target === deleteConfirmation) closeDeleteConfirmation(state);
-    });
-    const saveDialog = root.querySelector('[data-role="save-dialog"]');
-    saveDialog.querySelector('[data-action="cancel-save"]').addEventListener("click", () => closeSaveDialog(state));
-    saveDialog.querySelector('[data-role="save-form"]').addEventListener("submit", (event) => {
-        event.preventDefault();
-        submitSaveDialog(state, saveCurrent);
-    });
-    saveDialog.addEventListener("click", (event) => {
-        if (event.target === saveDialog) closeSaveDialog(state);
-    });
-    const newCollectionDialog = root.querySelector('[data-role="new-collection-dialog"]');
-    newCollectionDialog.querySelector('[data-action="cancel-new-collection"]').addEventListener("click", () => closeNewCollectionDialog(state));
-    newCollectionDialog.querySelector('[data-role="new-collection-form"]').addEventListener("submit", (event) => {
-        event.preventDefault();
-        submitNewCollectionDialog(state, createCollection);
-    });
-    newCollectionDialog.addEventListener("click", (event) => {
-        if (event.target === newCollectionDialog) closeNewCollectionDialog(state);
-    });
-    root.querySelector('[data-action="view-mode"]').addEventListener("click", () => {
-        const index = GALLERY_VIEW_MODES.indexOf(state.viewMode);
-        setGalleryViewMode(state, GALLERY_VIEW_MODES[(index + 1) % GALLERY_VIEW_MODES.length]);
-        renderGalleryRecords(state);
-    });
-    root.querySelectorAll('[data-role="record-layer"]').forEach((input) => {
-        input.addEventListener("change", () => {
-            setThumbnailLayerVisibility(state, input.dataset.layer, input.checked);
-            renderGalleryRecords(state);
-        });
-    });
-    root.querySelector('[data-role="collection"]').addEventListener("change", (event) => {
-        state.selectedCollection = event.target.value;
-        state.selectionRequestId += 1;
-        state.selectedRecord = null;
-        root.querySelector('[data-action="use-record"]').disabled = true;
-        setWidget(node, "gallery_collection_id", state.selectedCollection);
-        if (node._poseGalleryState) showCurrentState(state, node._poseGalleryState);
-        else showCurrentState(state, {});
-        loadRecords(state);
-    });
-    root.querySelector('[data-role="search"]').addEventListener("input", () => renderGalleryRecords(state));
-    state.resizeHandler = () => {
-        applyPanelLayout(panel);
-        resizePreviewCanvas(state);
-    };
-    state.keydownHandler = (event) => {
-        if (!panel.contains(document.activeElement) || event.defaultPrevented || state.closing) return;
-        if (event.key === "Escape") {
-            if (state.newCollectionDialogOpen) {
-                event.preventDefault();
-                closeNewCollectionDialog(state);
-                return;
-            }
-            if (state.saveDialogOpen) {
-                event.preventDefault();
-                closeSaveDialog(state);
-                return;
-            }
-            if (state.deleteConfirmOpen) {
-                event.preventDefault();
-                closeDeleteConfirmation(state);
-                return;
-            }
-            if (state.settingsOpen) {
-                event.preventDefault();
-                closeSettings(state);
-                return;
-            }
-            if (state.previewExpanded) {
-                event.preventDefault();
-                closePreviewLightbox(state);
-                return;
-            }
-            const search = state.root.querySelector('[data-role="search"]');
-            if (event.target === search && search.value) {
-                search.value = "";
-                renderGalleryRecords(state);
-                event.preventDefault();
-                return;
-            }
-            event.preventDefault();
-            panel.close();
-            return;
-        }
-        if (event.key !== "Tab") return;
-        const focusScope = state.newCollectionDialogOpen
-            ? state.root.querySelector('[data-role="new-collection-dialog"]')
-            : state.saveDialogOpen
-                ? state.root.querySelector('[data-role="save-dialog"]')
-                : state.deleteConfirmOpen
-                    ? state.root.querySelector('[data-role="delete-confirmation"]')
-                    : state.settingsOpen
-                        ? state.root.querySelector('[data-role="settings-dialog"]')
-                        : state.previewExpanded
-                            ? state.root.querySelector('[data-role="preview-lightbox"]')
-                            : panel;
-        const focusable = Array.from(focusScope.querySelectorAll(
-            'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]',
-        )).filter((element) => !element.hidden && element.getClientRects().length > 0);
-        if (!focusable.length) {
-            event.preventDefault();
-            panel.focus();
-            return;
-        }
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (document.activeElement === panel) {
-            event.preventDefault();
-            (event.shiftKey ? last : first).focus();
-        } else if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
-        }
-    };
-    window.addEventListener("resize", state.resizeHandler);
-    window.addEventListener("keydown", state.keydownHandler);
     requestAnimationFrame(() => {
         void panel.offsetWidth;
         panel.classList.add("mcore-pg-open");
@@ -377,6 +211,7 @@ function openGallery(node) {
     }).catch((error) => toast("error", "Pose Gallery", String(error)));
 }
 
+/** @param {GalleryPanelState} state */
 async function refreshCollections(state) {
     if (state.closing) return;
     const requestId = ++state.collectionsRequestId;
@@ -415,6 +250,7 @@ async function refreshCollections(state) {
     await loadRecords(state);
 }
 
+/** @param {GalleryPanelState} state */
 async function createCollection(state, name) {
     if (!name?.trim()) return;
     try {
@@ -436,6 +272,7 @@ async function createCollection(state, name) {
     }
 }
 
+/** @param {GalleryPanelState} state */
 async function loadRecords(state) {
     if (state.closing) return false;
     state.retryCollections = false;
@@ -463,6 +300,7 @@ async function loadRecords(state) {
     }
 }
 
+/** @param {GalleryPanelState} state @param {string} recordId */
 async function selectRecord(state, recordId) {
     if (state.deletingRecordId === String(recordId)) return;
     const requestId = ++state.selectionRequestId;
@@ -491,6 +329,7 @@ async function selectRecord(state, recordId) {
     }
 }
 
+/** @param {GalleryPanelState} state */
 function updateRecordActions(state) {
     const busy = state.selectionPending || state.deletingRecordId != null || state.usingRecord
         || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
@@ -498,6 +337,7 @@ function updateRecordActions(state) {
     state.root.querySelector('[data-action="delete-record"]').disabled = !state.selectedRecord || busy;
 }
 
+/** @param {GalleryPanelState} state @param {GalleryRecord} record */
 async function deleteSelectedRecord(state, record) {
     if (!record || state.deletingRecordId != null || state.selectionPending || state.usingRecord) return;
     const recordId = String(record.id);
@@ -543,6 +383,7 @@ async function deleteSelectedRecord(state, record) {
     }
 }
 
+/** @param {GalleryPanelState} state @param {Record<string, any>} preview */
 function showCurrentState(state, preview) {
     state.showingCurrentInputs = false;
     state.selectionRequestId += 1;
@@ -566,6 +407,7 @@ function showCurrentState(state, preview) {
     updateCurrentInputsButton(state);
 }
 
+/** @param {GalleryPanelState} state @param {GalleryRecord} record */
 function showRecord(state, record) {
     state.showingCurrentInputs = false;
     setPreviewSource(state, {
@@ -580,6 +422,7 @@ function showRecord(state, record) {
     updateCurrentInputsButton(state);
 }
 
+/** @param {GalleryPanelState} state */
 function updateCurrentInputsButton(state) {
     const button = state.root.querySelector('[data-action="show-current-inputs"]');
     if (!button) return;
@@ -609,6 +452,7 @@ function currentInputsDetails(preview) {
     };
 }
 
+/** @param {GalleryPanelState} state @param {Record<string, any>} preview */
 function showCurrentInputs(state, preview) {
     state.showingCurrentInputs = true;
     setPreviewSource(state, {
@@ -623,6 +467,7 @@ function showCurrentInputs(state, preview) {
     updateCurrentInputsButton(state);
 }
 
+/** @param {GalleryPanelState} state */
 async function toggleCurrentInputs(state) {
     if (state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
     if (state.showingCurrentInputs) {
@@ -652,6 +497,7 @@ async function toggleCurrentInputs(state) {
     }
 }
 
+/** @param {GalleryPanelState} panelState @param {Record<string, any>} nodeState */
 function showNodeState(panelState, nodeState) {
     if (nodeState?.source === "gallery" && nodeState.record_id) {
         selectRecord(panelState, nodeState.record_id);
@@ -660,6 +506,7 @@ function showNodeState(panelState, nodeState) {
     showCurrentState(panelState, nodeState);
 }
 
+/** @param {GalleryPanelState} state */
 async function saveCurrent(state, name) {
     if (state.savingRecord || state.saveQueued || state.loadingCurrentInputs) return;
     state.savingRecord = true;
@@ -687,6 +534,7 @@ async function saveCurrent(state, name) {
     }
 }
 
+/** @param {GalleryPanelState} state */
 async function useSelectedRecord(state) {
     if (!state.selectedRecord || state.deletingRecordId != null || state.selectionPending || state.usingRecord
         || state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;

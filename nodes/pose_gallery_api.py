@@ -7,6 +7,7 @@ import re
 import shutil
 import uuid
 from io import BytesIO
+from typing import Literal, TypedDict
 
 from aiohttp import web
 from PIL import Image as PILImage
@@ -17,11 +18,27 @@ from . import pose_gallery_store as gallery_store
 from .openpose_studio import render_pose_image
 
 
-_pending_captures: dict[str, dict] = {}
+__all__ = [
+    "CaptureRequest",
+    "consume_pending_capture",
+    "get_last_capture_token",
+    "get_pending_capture",
+    "has_pending_capture",
+]
+
+
+class CaptureRequest(TypedDict):
+    token: str
+    action: Literal["save", "preview"]
+    collection_id: str
+    name: str
+
+
+_pending_captures: dict[str, CaptureRequest] = {}
 _last_capture_tokens: dict[str, str] = {}
 
 
-def get_pending_capture(node_id: str) -> dict | None:
+def get_pending_capture(node_id: str) -> CaptureRequest | None:
     return _pending_captures.get(node_id)
 
 
@@ -29,7 +46,7 @@ def has_pending_capture(node_id: str) -> bool:
     return node_id in _pending_captures
 
 
-def consume_pending_capture(node_id: str) -> dict | None:
+def consume_pending_capture(node_id: str) -> CaptureRequest | None:
     capture = _pending_captures.pop(node_id, None)
     if capture:
         _last_capture_tokens[node_id] = capture["token"]
@@ -64,7 +81,7 @@ async def _render_pose_preview(request: web.Request) -> web.Response:
 
     try:
         pose_array = render_pose_image(pose_json, line_width_scale=line_width_scale)
-        png = gallery_store._manifest_preview_array(pose_array, channels=3)
+        png = gallery_store.manifest_preview_array(pose_array, channels=3)
         buffer = BytesIO()
         PILImage.fromarray(png, "RGB").save(buffer, format="PNG")
     except Exception:
@@ -78,7 +95,7 @@ async def _render_pose_preview(request: web.Request) -> web.Response:
 
 @routes.get("/mincore/pose_gallery/collections")
 async def _get_collections(_request: web.Request) -> web.Response:
-    return web.json_response({"collections": gallery_store._read_collections()})
+    return web.json_response({"collections": gallery_store.read_collections()})
 
 
 @routes.post("/mincore/pose_gallery/collections")
@@ -90,12 +107,12 @@ async def _create_collection(request: web.Request) -> web.Response:
     name = str(payload.get("name", "")).strip()[:100] if isinstance(payload, dict) else ""
     if not name:
         return web.json_response({"error": "Collection name is required"}, status=400)
-    collections = gallery_store._read_collections()
+    collections = gallery_store.read_collections()
     if any(item.get("name", "").casefold() == name.casefold() for item in collections):
         return web.json_response({"error": "A collection with that name already exists"}, status=409)
     collection = {"id": uuid.uuid4().hex, "name": name}
     collections.append(collection)
-    gallery_store._write_json(gallery_store._collections_path(), {"collections": collections})
+    gallery_store.write_json(gallery_store.collections_path(), {"collections": collections})
     return web.json_response(collection)
 
 
@@ -103,7 +120,7 @@ async def _create_collection(request: web.Request) -> web.Response:
 async def _get_records(request: web.Request) -> web.Response:
     collection_id = request.rel_url.query.get("collection_id", "default")
     try:
-        return web.json_response({"records": gallery_store._list_records(collection_id)})
+        return web.json_response({"records": gallery_store.list_records(collection_id)})
     except ValueError as error:
         return web.json_response({"error": str(error)}, status=404)
 
@@ -112,12 +129,12 @@ async def _get_records(request: web.Request) -> web.Response:
 async def _get_record(request: web.Request) -> web.Response:
     record_id = request.match_info.get("record_id", "")
     try:
-        manifest = gallery_store._read_manifest(record_id)
+        manifest = gallery_store.read_manifest(record_id)
     except ValueError as error:
         return web.json_response({"error": str(error)}, status=400)
     if manifest is None:
         return web.json_response({"error": "Record not found"}, status=404)
-    image_path = os.path.join(gallery_store._record_dir(record_id), "image.png")
+    image_path = os.path.join(gallery_store.record_dir(record_id), "image.png")
     has_image = bool(manifest.get("has_image", os.path.isfile(image_path))) and os.path.isfile(image_path)
     manifest["has_image"] = has_image
     manifest["assets"] = {
@@ -139,8 +156,8 @@ async def _get_record(request: web.Request) -> web.Response:
 async def _delete_record(request: web.Request) -> web.Response:
     record_id = request.match_info.get("record_id", "")
     try:
-        directory = gallery_store._record_dir(record_id)
-        manifest = gallery_store._read_manifest(record_id)
+        directory = gallery_store.record_dir(record_id)
+        manifest = gallery_store.read_manifest(record_id)
     except json.JSONDecodeError:
         return web.json_response({"error": "Could not read the gallery record"}, status=500)
     except ValueError as error:
@@ -161,7 +178,7 @@ async def _get_record_asset(request: web.Request) -> web.StreamResponse:
     record_id = request.match_info.get("record_id", "")
     filename = request.match_info.get("filename", "")
     try:
-        manifest = gallery_store._read_manifest(record_id)
+        manifest = gallery_store.read_manifest(record_id)
     except ValueError as error:
         return web.Response(status=400, text=str(error))
     if manifest is None:
@@ -172,7 +189,7 @@ async def _get_record_asset(request: web.Request) -> web.StreamResponse:
     )
     if filename not in allowed:
         return web.Response(status=404)
-    record_dir = gallery_store._record_dir(record_id)
+    record_dir = gallery_store.record_dir(record_id)
     path = os.path.join(record_dir, filename)
     if not os.path.isfile(path) or not folder_paths.is_within_directory(record_dir, path):
         return web.Response(status=404)
@@ -194,13 +211,14 @@ async def _request_capture(request: web.Request) -> web.Response:
         return web.json_response({"error": "Invalid node ID"}, status=400)
     if action not in ("save", "preview"):
         return web.json_response({"error": "Invalid capture action"}, status=400)
-    if action == "save" and gallery_store._find_collection(collection_id) is None:
+    if action == "save" and gallery_store.find_collection(collection_id) is None:
         return web.json_response({"error": "Unknown collection"}, status=404)
     token = uuid.uuid4().hex
-    _pending_captures[node_id] = {
+    capture: CaptureRequest = {
         "token": token,
         "action": action,
         "collection_id": collection_id,
         "name": str(payload.get("name", ""))[:120],
     }
+    _pending_captures[node_id] = capture
     return web.json_response({"ok": True, "token": token})

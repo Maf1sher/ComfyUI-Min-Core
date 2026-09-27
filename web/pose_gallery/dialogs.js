@@ -1,5 +1,9 @@
 import { resizePreviewCanvas } from "./preview.js";
 
+/** @typedef {import("./types.js").GalleryPanelState} GalleryPanelState */
+/** @typedef {import("./types.js").GalleryRecord} GalleryRecord */
+
+/** @param {GalleryPanelState} state */
 export function openPreviewLightbox(state) {
     const lightbox = state.root.querySelector('[data-role="preview-lightbox"]');
     if (!lightbox || state.previewExpanded) return;
@@ -11,6 +15,7 @@ export function openPreviewLightbox(state) {
     lightbox.querySelector('[data-action="close-preview"]').focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state */
 export function closePreviewLightbox(state) {
     const lightbox = state.root.querySelector('[data-role="preview-lightbox"]');
     if (!lightbox || !state.previewExpanded) return;
@@ -22,6 +27,7 @@ export function closePreviewLightbox(state) {
     if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state */
 export function openSettings(state) {
     const settings = state.root.querySelector('[data-role="settings-dialog"]');
     if (!settings || state.settingsOpen) return;
@@ -32,6 +38,7 @@ export function openSettings(state) {
     settings.querySelector('[data-action="close-settings"]').focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state */
 export function closeSettings(state) {
     const settings = state.root.querySelector('[data-role="settings-dialog"]');
     if (!settings || !state.settingsOpen) return;
@@ -43,6 +50,7 @@ export function closeSettings(state) {
     if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state @param {GalleryRecord | null} record */
 export function openDeleteConfirmation(state, record) {
     const dialog = state.root.querySelector('[data-role="delete-confirmation"]');
     if (!record || !dialog || state.deleteConfirmOpen) return;
@@ -54,6 +62,7 @@ export function openDeleteConfirmation(state, record) {
     dialog.querySelector('[data-action="cancel-delete"]').focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state */
 export function closeDeleteConfirmation(state, restoreFocus = true) {
     const dialog = state.root.querySelector('[data-role="delete-confirmation"]');
     if (!dialog || !state.deleteConfirmOpen) return;
@@ -65,6 +74,7 @@ export function closeDeleteConfirmation(state, restoreFocus = true) {
     if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state */
 export function openSaveDialog(state) {
     const dialog = state.root.querySelector('[data-role="save-dialog"]');
     if (!dialog || state.saveDialogOpen || state.savingRecord || state.saveQueued || state.loadingCurrentInputs) return;
@@ -76,6 +86,7 @@ export function openSaveDialog(state) {
     nameInput.focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state */
 export function closeSaveDialog(state, restoreFocus = true) {
     const dialog = state.root.querySelector('[data-role="save-dialog"]');
     if (!dialog || !state.saveDialogOpen) return;
@@ -86,6 +97,7 @@ export function closeSaveDialog(state, restoreFocus = true) {
     if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state */
 export function openNewCollectionDialog(state) {
     const dialog = state.root.querySelector('[data-role="new-collection-dialog"]');
     if (!dialog || state.newCollectionDialogOpen) return;
@@ -97,6 +109,7 @@ export function openNewCollectionDialog(state) {
     nameInput.focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state */
 export function closeNewCollectionDialog(state, restoreFocus = true) {
     const dialog = state.root.querySelector('[data-role="new-collection-dialog"]');
     if (!dialog || !state.newCollectionDialogOpen) return;
@@ -107,6 +120,7 @@ export function closeNewCollectionDialog(state, restoreFocus = true) {
     if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state @param {(state: GalleryPanelState, name: string) => Promise<void>} createCollection */
 export function submitNewCollectionDialog(state, createCollection) {
     if (!state.newCollectionDialogOpen) return;
     const nameInput = state.root.querySelector('[data-role="new-collection-name"]');
@@ -119,6 +133,7 @@ export function submitNewCollectionDialog(state, createCollection) {
     void createCollection(state, name);
 }
 
+/** @param {GalleryPanelState} state @param {(state: GalleryPanelState, name: string) => Promise<void>} saveCurrent */
 export function submitSaveDialog(state, saveCurrent) {
     if (!state.saveDialogOpen || state.savingRecord) return;
     const name = state.root.querySelector('[data-role="save-name"]').value;

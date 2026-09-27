@@ -3,16 +3,14 @@
 import os
 import re
 
-import numpy as np
 import torch
-from PIL import Image as PILImage
 from comfy_api.latest import io
 from comfy_api.latest._io import _UIOutput
 
-import folder_paths
 from .openpose_studio import get_runtime_render_style_fingerprint, render_pose_image
 from . import pose_gallery_store as gallery_store
 from . import pose_gallery_api as gallery_api
+from . import pose_gallery_preview as gallery_preview
 
 
 def _ordered_values(values, prefix: str, include_empty: bool = True) -> list:
@@ -32,139 +30,6 @@ def _ordered_values(values, prefix: str, include_empty: bool = True) -> list:
         if include_empty or value is not None:
             result.append(value)
     return result
-
-
-def _preview_rgb_array(tensor: torch.Tensor | None) -> np.ndarray | None:
-    if not torch.is_tensor(tensor):
-        return None
-    array = tensor.detach().to(device="cpu", dtype=torch.float32).numpy()
-    if array.ndim == 4:
-        array = array[0]
-    if array.ndim == 2:
-        array = np.repeat(array[..., None], 3, axis=-1)
-    if array.ndim != 3 or array.shape[-1] < 3:
-        return None
-    return np.clip(array[..., :3] * 255.0, 0, 255).astype(np.uint8)
-
-
-def _preview_mask_array(tensor: torch.Tensor) -> np.ndarray | None:
-    if not torch.is_tensor(tensor):
-        return None
-    array = tensor.detach().to(device="cpu", dtype=torch.float32).numpy()
-    if array.ndim == 4:
-        array = array[0, 0]
-    elif array.ndim == 3:
-        array = array[0]
-    if array.ndim != 2:
-        return None
-    return np.clip(array * 255.0, 0, 255).astype(np.uint8)
-
-
-def _compose_node_preview(
-    image: torch.Tensor | None,
-    pose_image: torch.Tensor,
-    masks: list[torch.Tensor],
-    show_image: bool,
-    show_openpose: bool,
-    show_masks: bool,
-) -> np.ndarray:
-    image_array = _preview_rgb_array(image)
-    pose_array = _preview_rgb_array(pose_image)
-    mask_arrays = [_preview_mask_array(mask) for mask in masks]
-    reference_shape = next(
-        (array.shape[:2] for array in (image_array, pose_array, *mask_arrays) if array is not None),
-        (512, 512),
-    )
-    height, width = reference_shape
-    size = (width, height)
-    resampling = getattr(PILImage, "Resampling", PILImage).LANCZOS
-    canvas = PILImage.new("RGBA", size, (0, 0, 0, 255))
-
-    if show_image and image_array is not None:
-        layer = PILImage.fromarray(image_array, "RGB")
-        if layer.size != size:
-            layer = layer.resize(size, resampling)
-        canvas.alpha_composite(layer.convert("RGBA"))
-
-    if show_openpose and pose_array is not None:
-        intensity = np.max(pose_array, axis=-1)
-        divisor = np.maximum(intensity, 1)[..., None]
-        rgb = np.clip(pose_array.astype(np.float32) * (255.0 / divisor), 0, 255).astype(np.uint8)
-        alpha = np.minimum(255, np.round(intensity.astype(np.float32) / 0.6)).astype(np.uint8)
-        pose_rgba = np.concatenate((rgb, alpha[..., None]), axis=-1)
-        layer = PILImage.fromarray(pose_rgba, "RGBA")
-        if layer.size != size:
-            layer = layer.resize(size, resampling)
-        canvas.alpha_composite(layer)
-
-    if show_masks:
-        mask_colors = (
-            (255, 80, 80), (70, 170, 255), (100, 230, 120),
-            (255, 190, 60), (210, 100, 255), (50, 220, 210),
-        )
-        for index, mask_array in enumerate(mask_arrays):
-            if mask_array is None:
-                continue
-            mask_layer = PILImage.fromarray(mask_array, "L")
-            if mask_layer.size != size:
-                mask_layer = mask_layer.resize(size, resampling)
-            intensity = np.asarray(mask_layer, dtype=np.uint8)
-            rgba = np.empty((height, width, 4), dtype=np.uint8)
-            rgba[..., :3] = mask_colors[index % len(mask_colors)]
-            rgba[..., 3] = np.round(intensity.astype(np.float32) * 0.52).astype(np.uint8)
-            canvas.alpha_composite(PILImage.fromarray(rgba, "RGBA"))
-
-    return np.asarray(canvas.convert("RGB"))
-
-
-def _save_temp_preview(
-    node_id: str,
-    image: torch.Tensor | None,
-    pose_image: torch.Tensor,
-    masks: list[torch.Tensor],
-    scope: str = "output",
-    show_image: bool = True,
-    show_openpose: bool = True,
-    show_masks: bool = False,
-) -> dict:
-    safe_node_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(node_id))
-    subfolder = os.path.join("MinCorePoseGallery", safe_node_id).replace("\\", "/")
-    if scope != "output":
-        subfolder = f"{subfolder}/{scope}"
-    directory = os.path.join(folder_paths.get_temp_directory(), subfolder)
-    os.makedirs(directory, exist_ok=True)
-
-    def save_tensor(tensor: torch.Tensor, filename: str, mask: bool = False) -> dict:
-        array = tensor.detach().to(device="cpu", dtype=torch.float32).numpy()
-        if mask:
-            if array.ndim == 4:
-                array = array[0, 0]
-            elif array.ndim == 3:
-                array = array[0]
-            array = np.clip(array * 255.0, 0, 255).astype(np.uint8)
-            PILImage.fromarray(array, "L").save(os.path.join(directory, filename))
-        else:
-            if array.ndim == 4:
-                array = array[0]
-            array = np.clip(array[..., :3] * 255.0, 0, 255).astype(np.uint8)
-            PILImage.fromarray(array, "RGB").save(os.path.join(directory, filename))
-        return {"filename": filename, "subfolder": subfolder, "type": "temp"}
-
-    node_preview = _compose_node_preview(
-        image,
-        pose_image,
-        masks,
-        show_image,
-        show_openpose,
-        show_masks,
-    )
-    PILImage.fromarray(node_preview, "RGB").save(os.path.join(directory, "preview.png"))
-    return {
-        "image": save_tensor(image, "image.png") if image is not None else None,
-        "pose": save_tensor(pose_image, "pose.png"),
-        "masks": [save_tensor(mask, f"mask_{index:04d}.png", mask=True) for index, mask in enumerate(masks)],
-        "node_preview": {"filename": "preview.png", "subfolder": subfolder, "type": "temp"},
-    }
 
 
 class _PoseGalleryUI(_UIOutput):
@@ -335,7 +200,7 @@ class MinCore_PoseGallery(io.ComfyNode):
         parts.append(capture["token"] if capture else gallery_api.get_last_capture_token(node_id))
         if output_source == "gallery" and gallery_record_id:
             try:
-                stat = os.stat(os.path.join(gallery_store._record_dir(gallery_record_id), "data.npz"))
+                stat = os.stat(os.path.join(gallery_store.record_dir(gallery_record_id), "data.npz"))
                 parts.append(f"{stat.st_mtime_ns}:{stat.st_size}")
             except (OSError, ValueError):
                 parts.append("missing")
@@ -395,7 +260,7 @@ class MinCore_PoseGallery(io.ComfyNode):
             output_source = "inputs"
 
         if output_source == "gallery":
-            manifest, image, masks_out = gallery_store._load_record(gallery_record_id)
+            manifest, image, masks_out = gallery_store.load_record(gallery_record_id)
             pose_json = str(manifest.get("pose_json", ""))
             general_tags = str(manifest.get("general_tags", ""))
             person_tags_out = [str(tag) for tag in manifest.get("person_tags", [])]
@@ -415,7 +280,7 @@ class MinCore_PoseGallery(io.ComfyNode):
         # Optional inputs still need consumable values on typed output sockets.
         if image is None:
             image_output = torch.zeros_like(pose_image)
-        elif gallery_store._is_valid_image(image):
+        elif gallery_store.is_valid_image(image):
             image_output = image
         else:
             raise RuntimeError("Pose Gallery: IMAGE input must be a valid IMAGE tensor.")
@@ -433,7 +298,7 @@ class MinCore_PoseGallery(io.ComfyNode):
         saved_record = None
         current_inputs_preview = None
         if capture_request is not None and capture_request["action"] == "save":
-            saved_record = gallery_store._save_record(
+            saved_record = gallery_store.save_record(
                 capture_request["collection_id"],
                 capture_request["name"],
                 input_image,
@@ -453,7 +318,7 @@ class MinCore_PoseGallery(io.ComfyNode):
                 "collection_id": saved_record["collection_id"],
             }
         elif capture_request is not None and capture_request["action"] == "preview":
-            if input_image is not None and not gallery_store._is_valid_image(input_image):
+            if input_image is not None and not gallery_store.is_valid_image(input_image):
                 raise RuntimeError("Pose Gallery: connect a valid IMAGE to preview current inputs.")
             current_pose_json = input_pose_json if isinstance(input_pose_json, str) else str(input_pose_json or "")
             current_masks = [
@@ -467,7 +332,7 @@ class MinCore_PoseGallery(io.ComfyNode):
                 input_general_tags if isinstance(input_general_tags, str) else str(input_general_tags or "")
             )
             current_pose_image = torch.from_numpy(render_pose_image(current_pose_json)).unsqueeze(0)
-            current_preview = _save_temp_preview(
+            current_preview = gallery_preview.save_temp_preview(
                 node_id,
                 input_image,
                 current_pose_image,
@@ -483,7 +348,7 @@ class MinCore_PoseGallery(io.ComfyNode):
                 "mask_count": len(current_masks),
             }
 
-        preview = _save_temp_preview(
+        preview = gallery_preview.save_temp_preview(
             node_id,
             image,
             pose_image,
