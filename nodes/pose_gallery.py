@@ -112,6 +112,10 @@ def _list_records(collection_id: str | None = None) -> list[dict]:
             "general_tags": str(manifest.get("general_tags", "")),
             "person_tags": manifest.get("person_tags", []),
             "mask_count": int(manifest.get("mask_count", 0)),
+            "has_image": (
+                bool(manifest.get("has_image", True))
+                and os.path.isfile(os.path.join(entry.path, "image.png"))
+            ),
             "created": str(manifest.get("created", "")),
         })
     return sorted(records, key=lambda record: record["created"], reverse=True)
@@ -240,7 +244,7 @@ def _compose_node_preview(
 def _save_record(
     collection_id: str,
     name: str,
-    image: torch.Tensor,
+    image: torch.Tensor | None,
     pose_json: str,
     masks: list[torch.Tensor],
     general_tags: str,
@@ -249,20 +253,23 @@ def _save_record(
     collection = _find_collection(collection_id)
     if collection is None:
         raise ValueError("Unknown gallery collection")
-    if not _is_valid_image(image):
-        raise ValueError("Pose Gallery: connect a valid IMAGE before saving.")
+    if image is not None and not _is_valid_image(image):
+        raise ValueError("Pose Gallery: IMAGE input must be a valid IMAGE tensor.")
 
     record_id = uuid.uuid4().hex
     directory = _record_dir(record_id)
     os.makedirs(directory, exist_ok=False)
     try:
-        arrays = {"image": _as_float_array(image)}
+        arrays = {}
+        if image is not None:
+            arrays["image"] = _as_float_array(image)
         for index, mask in enumerate(masks):
             arrays[f"mask_{index:04d}"] = _as_float_array(mask)
         np.savez_compressed(os.path.join(directory, "data.npz"), **arrays)
 
-        image_preview = _manifest_preview_array(arrays["image"], channels=3)
-        PILImage.fromarray(image_preview, "RGB").save(os.path.join(directory, "image.png"))
+        if image is not None:
+            image_preview = _manifest_preview_array(arrays["image"], channels=3)
+            PILImage.fromarray(image_preview, "RGB").save(os.path.join(directory, "image.png"))
 
         pose_array = render_pose_image(pose_json)
         PILImage.fromarray(_manifest_preview_array(pose_array, channels=3), "RGB").save(
@@ -288,7 +295,8 @@ def _save_record(
             "general_tags": general_tags,
             "person_tags": person_tags,
             "mask_count": len(masks),
-            "image_shape": list(arrays["image"].shape),
+            "has_image": image is not None,
+            "image_shape": list(arrays["image"].shape) if image is not None else [],
         }
         _write_json(os.path.join(directory, "record.json"), manifest)
         return manifest
@@ -297,13 +305,16 @@ def _save_record(
         raise
 
 
-def _load_record(record_id: str) -> tuple[dict, torch.Tensor, list[torch.Tensor]]:
+def _load_record(record_id: str) -> tuple[dict, torch.Tensor | None, list[torch.Tensor]]:
     manifest = _read_manifest(record_id)
     if manifest is None:
         raise FileNotFoundError("Pose Gallery: the selected record no longer exists.")
     data_path = os.path.join(_record_dir(record_id), "data.npz")
     with np.load(data_path, allow_pickle=False) as data:
-        image = torch.from_numpy(np.array(data["image"], dtype=np.float32, copy=True))
+        image = (
+            torch.from_numpy(np.array(data["image"], dtype=np.float32, copy=True))
+            if "image" in data.files else None
+        )
         masks = [
             torch.from_numpy(np.array(data[f"mask_{index:04d}"], dtype=np.float32, copy=True))
             for index in range(int(manifest.get("mask_count", 0)))
@@ -463,8 +474,15 @@ async def _get_record(request: web.Request) -> web.Response:
         return web.json_response({"error": str(error)}, status=400)
     if manifest is None:
         return web.json_response({"error": "Record not found"}, status=404)
+    image_path = os.path.join(_record_dir(record_id), "image.png")
+    has_image = bool(manifest.get("has_image", os.path.isfile(image_path))) and os.path.isfile(image_path)
+    manifest["has_image"] = has_image
     manifest["assets"] = {
-        "image": f"/mincore/pose_gallery/records/{record_id}/assets/image.png",
+        "image": (
+            f"/mincore/pose_gallery/records/{record_id}/assets/image.png"
+            if has_image
+            else None
+        ),
         "pose": f"/mincore/pose_gallery/records/{record_id}/assets/pose.png",
         "masks": [
             f"/mincore/pose_gallery/records/{record_id}/assets/mask_{index:04d}.png"
@@ -597,12 +615,15 @@ class MinCore_PoseGallery(io.ComfyNode):
             is_output_node=True,
             has_intermediate_output=True,
             description=(
-                "Browse and save image, pose JSON, masks, and tags as gallery records. "
+                "Browse and save pose JSON, masks, and tags with an optional image as gallery records. "
                 "Outputs either the connected inputs or a selected record."
             ),
             search_aliases=["pose gallery", "image pose collection", "pose dataset"],
             inputs=[
-                io.Image.Input("image", optional=True, lazy=True, tooltip="Source image."),
+                io.Image.Input(
+                    "image", optional=True, lazy=True,
+                    tooltip="Optional source image; records can be saved without one.",
+                ),
                 io.String.Input("pose_json", default="", optional=True, lazy=True, force_input=True,
                                 tooltip="Pose JSON. The OpenPose preview is generated from this value."),
                 io.Autogrow.Input("masks", template=mask_template, optional=True,

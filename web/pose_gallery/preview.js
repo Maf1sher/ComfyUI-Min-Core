@@ -167,7 +167,7 @@ export function displayUrl(urlOrItem) {
     return typeof urlOrItem === "string" ? api.apiURL(urlOrItem) : fileItemUrl(urlOrItem);
 }
 
-export function drawRecordThumbnail(canvas, recordId) {
+export function drawRecordThumbnail(canvas, recordId, hasImage = true) {
     const image = new Image();
     const drawUnavailable = () => {
         const context = canvas.getContext("2d");
@@ -209,7 +209,8 @@ export function drawRecordThumbnail(canvas, recordId) {
         context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
     };
     image.onerror = drawUnavailable;
-    image.src = api.apiURL(`/mincore/pose_gallery/records/${recordId}/assets/image.png`);
+    const previewFilename = hasImage ? "image.png" : "pose.png";
+    image.src = api.apiURL(`/mincore/pose_gallery/records/${recordId}/assets/${previewFilename}`);
 }
 
 export function setPreviewSource(state, preview) {

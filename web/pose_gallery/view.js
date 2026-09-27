@@ -160,7 +160,11 @@ export function createThumbnailObserver(root) {
         for (const entry of entries) {
             if (!entry.isIntersecting) continue;
             observer.unobserve(entry.target);
-            drawRecordThumbnail(entry.target, entry.target.dataset.recordId);
+            drawRecordThumbnail(
+                entry.target,
+                entry.target.dataset.recordId,
+                entry.target.dataset.hasImage !== "false",
+            );
         }
     }, {
         root: root.querySelector('[data-role="records"]'),
@@ -247,6 +251,7 @@ export function renderRecords(state, { onSelect, onRetry }) {
             canvas.width = 360;
             canvas.height = 270;
             canvas.dataset.recordId = record.id;
+            canvas.dataset.hasImage = String(record.has_image !== false);
             canvas.setAttribute("aria-hidden", "true");
 
             const imageFrame = document.createElement("div");
@@ -330,6 +335,10 @@ export function renderRecords(state, { onSelect, onRetry }) {
     if (state.thumbnailObserver) {
         thumbnails.forEach((canvas) => state.thumbnailObserver.observe(canvas));
     } else {
-        thumbnails.forEach((canvas) => drawRecordThumbnail(canvas, canvas.dataset.recordId));
+        thumbnails.forEach((canvas) => drawRecordThumbnail(
+            canvas,
+            canvas.dataset.recordId,
+            canvas.dataset.hasImage !== "false",
+        ));
     }
 }

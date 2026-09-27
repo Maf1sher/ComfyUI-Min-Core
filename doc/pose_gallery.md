@@ -2,8 +2,8 @@
 
 ## Overview
 
-Pose Gallery Min stores complete image/pose records locally: a source image,
-pose JSON, any number of masks, general tags, and tags for each person. Open the
+Pose Gallery Min stores pose records locally: an optional source image, pose
+JSON, any number of masks, general tags, and tags for each person. Open the
 gallery from the node button or its context menu. It starts with an empty
 `Default` collection; additional collections can be created in the gallery.
 The node's **Open Pose Gallery** button stays compact and centered, regardless
@@ -32,8 +32,9 @@ Inputs are evaluated lazily. In gallery mode the node can load a selected
 record without running its upstream inputs. The gallery's **Save current
 inputs** button opens an in-gallery dialog for an optional record name, then
 queues the node to capture connected data in the selected collection. Leave the
-name blank to use an automatic name. Saving a record requires a valid **image**;
-the other inputs may be omitted.
+name blank to use an automatic name. The **image** is optional; pose JSON, masks,
+and tags can be saved without one. Any connected image must be a valid IMAGE
+tensor.
 
 Use **Show current inputs** in the side panel to run the connected inputs and
 preview available layers (the image if connected, pose, and masks) and tags
@@ -100,9 +101,10 @@ this also applies to gallery records without masks. If there are no person tags,
 strings to preserve person order. `POSE_JSON` and `GENERAL_TAGS` are empty
 strings when omitted, and `OPENPOSE` is still rendered from `pose_json`. These
 placeholders keep downstream IMAGE and MASK inputs type-valid, but they are
-synthetic values and may affect downstream results. Saving a record still
-requires an actual connected image. In `gallery` mode, a selected record is
-used; if none is selected, outputs follow the connected inputs instead.
+synthetic values and may affect downstream results. A saved record may omit its
+source image; its gallery thumbnail then uses the rendered pose preview. In
+`gallery` mode, a selected record is used; if none is selected, outputs follow
+the connected inputs instead.
 
 ComfyUI's current node API does not provide dynamic output sockets. Masks and
 per-person tags therefore use one list-valued output socket each, not one
