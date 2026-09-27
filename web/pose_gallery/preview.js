@@ -401,7 +401,7 @@ export function updateRecordDetails(state, record) {
     }
     const setDetail = (name, value) => {
         const element = state.root.querySelector(`[data-detail="${name}"]`);
-        if (element) element.textContent = value || "-";
+        if (element) element.textContent = value == null || String(value).trim() === "" ? "-" : value;
     };
     const currentInputs = record.source === "current_inputs";
     const kicker = state.root.querySelector(".mcore-pg-details-kicker");
@@ -411,14 +411,14 @@ export function updateRecordDetails(state, record) {
     const [height, width] = imageDimensions.map(Number);
     setDetail("name", currentInputs ? "Current inputs" : record.name || "Untitled record");
     setDetail("collection", currentInputs
-        ? "—"
+        ? "-"
         : state.collections.find((item) => item.id === record.collection_id)?.name || "-");
-    setDetail("created", currentInputs || !record.created ? "—" : new Date(record.created).toLocaleString());
+    setDetail("created", currentInputs || !record.created ? "-" : new Date(record.created).toLocaleString());
     setDetail("resolution", Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0
         ? `${width} × ${height} px`
         : "-");
     setDetail("masks", String(record.mask_count || 0));
-    setDetail("general-tags", record.general_tags || "—");
+    setDetail("general-tags", record.general_tags);
     const personTags = Array.isArray(record.person_tags) ? record.person_tags : [];
     const personTagsContainer = state.root.querySelector('[data-role="person-tags-row"]');
     personTagsContainer.replaceChildren();
@@ -431,7 +431,7 @@ export function updateRecordDetails(state, record) {
 
         const value = document.createElement("strong");
         value.className = "mcore-pg-details-tags";
-        value.textContent = tag == null || String(tag).trim() === "" ? "—" : String(tag);
+        value.textContent = tag == null || String(tag).trim() === "" ? "-" : String(tag);
 
         row.append(label, value);
         personTagsContainer.appendChild(row);

@@ -68,7 +68,7 @@ controls sit below the expanded image so they do not cover it.
 General tags are shown separately from per-person tags. Each person's tags are
 shown in their own detail row, using the same right-aligned tag styling as the
 other record details. The record details also show the source image resolution
-in width × height pixels.
+in width × height pixels. Missing detail values are shown as a hyphen (-).
 
 Saved records are shown as image cards with their name, save date, mask count,
 and tags. The gallery offers medium, large, and compact tile layouts; selecting a
