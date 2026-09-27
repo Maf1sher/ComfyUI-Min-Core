@@ -15,7 +15,7 @@ from PIL import Image as PILImage
 from server import PromptServer
 
 import folder_paths
-from ..openpose_studio import render_pose_image
+from ..openpose_studio import count_pose_people, is_pose_json_size_valid, render_pose_image
 from . import store as gallery_store
 
 
@@ -71,7 +71,7 @@ async def _render_pose_preview(request: web.Request) -> web.Response:
         return web.json_response({"error": "Invalid payload"}, status=400)
 
     pose_json = payload.get("pose_json")
-    if not isinstance(pose_json, str) or len(pose_json) > 5_000_000:
+    if not is_pose_json_size_valid(pose_json):
         return web.json_response({"error": "Invalid pose data"}, status=400)
     try:
         line_width_scale = float(payload.get("line_width_scale", 1.0))
@@ -105,7 +105,10 @@ async def _create_collection(request: web.Request) -> web.Response:
         payload = await request.json()
     except Exception:
         return web.json_response({"error": "Invalid JSON"}, status=400)
-    name = str(payload.get("name", "")).strip()[:100] if isinstance(payload, dict) else ""
+    raw_name = payload.get("name", "") if isinstance(payload, dict) else ""
+    if not isinstance(raw_name, str):
+        return web.json_response({"error": "Collection name must be text"}, status=400)
+    name = raw_name.strip()[:100]
     if not name:
         return web.json_response({"error": "Collection name is required"}, status=400)
     collections = gallery_store.read_collections()
@@ -135,6 +138,8 @@ async def _get_record(request: web.Request) -> web.Response:
         return web.json_response({"error": str(error)}, status=400)
     if manifest is None:
         return web.json_response({"error": "Record not found"}, status=404)
+    if not isinstance(manifest.get("pose_person_count"), int):
+        manifest["pose_person_count"] = count_pose_people(str(manifest.get("pose_json", "")))
     image_path = os.path.join(gallery_store.record_dir(record_id), "image.png")
     has_image = bool(manifest.get("has_image", os.path.isfile(image_path))) and os.path.isfile(image_path)
     manifest["has_image"] = has_image
@@ -218,12 +223,17 @@ async def _request_capture(request: web.Request) -> web.Response:
     if not isinstance(payload, dict):
         return web.json_response({"error": "Invalid payload"}, status=400)
     node_id = str(payload.get("node_id", ""))
-    action = str(payload.get("action", "save"))
-    collection_id = str(payload.get("collection_id", "default"))
+    action = payload.get("action", "save")
+    collection_id = payload.get("collection_id", "default")
     if not re.fullmatch(r"\d{1,12}", node_id):
         return web.json_response({"error": "Invalid node ID"}, status=400)
-    if action not in ("save", "preview"):
+    if not isinstance(action, str) or action not in ("save", "preview"):
         return web.json_response({"error": "Invalid capture action"}, status=400)
+    if not isinstance(collection_id, str):
+        return web.json_response({"error": "Invalid collection ID"}, status=400)
+    name = payload.get("name", "")
+    if not isinstance(name, str):
+        return web.json_response({"error": "Record name must be text"}, status=400)
     if action == "save" and gallery_store.find_collection(collection_id) is None:
         return web.json_response({"error": "Unknown collection"}, status=404)
     token = uuid.uuid4().hex
@@ -231,7 +241,7 @@ async def _request_capture(request: web.Request) -> web.Response:
         "token": token,
         "action": action,
         "collection_id": collection_id,
-        "name": str(payload.get("name", ""))[:120],
+        "name": name[:120],
     }
     _pending_captures[node_id] = capture
     return web.json_response({"ok": True, "token": token})

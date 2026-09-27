@@ -634,6 +634,14 @@ export function updateRecordDetails(state, record) {
     setDetail("masks", String(record.mask_count || 0));
     setDetail("general-tags", record.general_tags);
     const personTags = Array.isArray(record.person_tags) ? record.person_tags : [];
+    const personCount = Number.isInteger(record.pose_person_count) ? record.pose_person_count : null;
+    const tagMismatch = record.person_tag_mismatch === true
+        || (record.person_tag_mismatch !== false
+            && personCount !== null
+            && personTags.length > 0
+            && personTags.length !== personCount);
+    const warning = state.root.querySelector('[data-role="person-tags-warning"]');
+    if (warning) warning.hidden = !tagMismatch;
     const personTagsContainer = state.root.querySelector('[data-role="person-tags-row"]');
     personTagsContainer.replaceChildren();
     personTags.forEach((tag, index) => {

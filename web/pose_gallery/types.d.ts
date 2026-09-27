@@ -12,6 +12,7 @@ export interface GalleryRecordSummary {
     mask_count: number;
     has_image: boolean;
     created: string;
+    pose_person_count?: number | null;
 }
 
 export interface GalleryRecord extends GalleryRecordSummary {

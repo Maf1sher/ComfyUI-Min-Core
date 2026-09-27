@@ -36,6 +36,10 @@ queues the node to capture connected data in the selected collection. Leave the
 name blank to use an automatic name. The **image** is optional; pose JSON, masks,
 and tags can be saved without one. Any connected image must be a valid IMAGE
 tensor.
+Pose JSON is limited to 5 MB, and rendered canvases are limited to 16,384 pixels
+per side and 20 megapixels. Masks must be non-empty 2D, 3D, or 4D tensors. When
+person-tag slots are configured but their count differs from the people found in
+the pose JSON, the gallery shows a warning; execution is not blocked.
 
 Use **Show current inputs** in the side panel to run the connected inputs and
 preview available layers (the image if connected, pose, and masks) and tags

@@ -173,6 +173,10 @@ HAND_KEYPOINT_COLORS = [
 
 DEBUG_RENDER = os.environ.get("OPENPOSE_EDITOR_DEBUG", "").strip().lower() in ("1", "true", "yes", "on")
 
+_MAX_POSE_JSON_BYTES = 5_000_000
+_MAX_POSE_DIMENSION = 16_384
+_MAX_POSE_PIXELS = 20_000_000
+
 RENDER_STYLE_VERSION = 2
 RENDER_STYLE_KEYS = {
     "version": "mincore_openpose_editor.renderer.version",
@@ -342,6 +346,26 @@ def _coerce_dimension(value, fallback=512):
     if not math.isfinite(number) or number <= 0:
         return fallback
     return int(number)
+
+
+def _validate_canvas_size(width, height):
+    if (
+        width > _MAX_POSE_DIMENSION
+        or height > _MAX_POSE_DIMENSION
+        or width * height > _MAX_POSE_PIXELS
+    ):
+        raise ValueError(
+            "OpenPose canvas is too large (maximum 16,384 px per side and 20 megapixels)."
+        )
+
+
+def is_pose_json_size_valid(pose_json):
+    if not isinstance(pose_json, str) or len(pose_json) > _MAX_POSE_JSON_BYTES:
+        return False
+    try:
+        return len(pose_json.encode("utf-8")) <= _MAX_POSE_JSON_BYTES
+    except UnicodeEncodeError:
+        return False
 
 
 def _extract_keypoints_from_pose_keypoints_2d(pose_keypoints_2d, canvas_width, canvas_height):
@@ -589,6 +613,14 @@ def _coerce_pose_json_string(value):
         except Exception:
             return None
     return None
+
+
+def count_pose_people(pose_json):
+    """Return the number of renderable people, or None for unrecognized data."""
+    if not is_pose_json_size_valid(pose_json):
+        return None
+    normalized = _normalize_pose_json(pose_json)
+    return len(normalized["poses"]) if normalized is not None else None
 
 
 # ── Drawing functions ────────────────────────────────────────────────────────
@@ -884,6 +916,8 @@ def render_pose_image(
     Returns:
         RGB image as numpy array (H, W, 3) in 0-1 float range
     """
+    if isinstance(pose_json, str) and not is_pose_json_size_valid(pose_json):
+        raise ValueError("Pose JSON exceeds the 5 MB limit.")
     line_width_scale = float(line_width_scale)
     if not math.isfinite(line_width_scale) or not 0.5 <= line_width_scale <= 2.5:
         raise ValueError("OpenPose line width scale must be between 0.5 and 2.5.")
@@ -899,6 +933,7 @@ def render_pose_image(
 
     width = normalized.get("width", 512)
     height = normalized.get("height", 512)
+    _validate_canvas_size(width, height)
     schema = normalized.get("schema", "unknown")
     poses = normalized.get("poses", [])
     render_style = get_runtime_render_style()

@@ -470,6 +470,8 @@ function currentInputsDetails(preview) {
             : (preview.masks || []).length,
         general_tags: preview.general_tags || "",
         person_tags: preview.person_tags || [],
+        pose_person_count: preview.pose_person_count,
+        person_tag_mismatch: preview.person_tag_mismatch,
     };
 }
 

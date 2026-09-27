@@ -13,7 +13,7 @@ import torch
 from PIL import Image as PILImage
 
 import folder_paths
-from ..openpose_studio import render_pose_image
+from ..openpose_studio import count_pose_people, render_pose_image
 
 
 __all__ = [
@@ -24,6 +24,7 @@ __all__ = [
     "ensure_record_thumbnail",
     "find_collection",
     "is_valid_image",
+    "is_valid_mask",
     "list_records",
     "load_record",
     "manifest_preview_array",
@@ -49,6 +50,7 @@ class RecordManifest(TypedDict, total=False):
     collection_id: str
     created: str
     pose_json: str
+    pose_person_count: int | None
     general_tags: str
     person_tags: list[str]
     mask_count: int
@@ -95,13 +97,42 @@ def read_collections() -> list[Collection]:
         write_json(path, {"collections": [{"id": "default", "name": "Default"}]})
     with open(path, "r", encoding="utf-8") as file:
         data = json.load(file)
+    if not isinstance(data, dict):
+        raise ValueError("Invalid gallery collection index")
     collections = data.get("collections", [])
     if not isinstance(collections, list):
         raise ValueError("Invalid gallery collection index")
-    if not any(item.get("id") == "default" for item in collections if isinstance(item, dict)):
-        collections.insert(0, {"id": "default", "name": "Default"})
-        write_json(path, {"collections": collections})
-    return collections
+
+    validated = []
+    seen_ids = set()
+    for item in collections:
+        if not isinstance(item, dict):
+            continue
+        collection_id = item.get("id")
+        if collection_id == "default":
+            if collection_id not in seen_ids:
+                validated.append({"id": "default", "name": "Default"})
+                seen_ids.add(collection_id)
+            continue
+        name = item.get("name")
+        if (
+            not isinstance(collection_id, str)
+            or not _COLLECTION_ID.fullmatch(collection_id)
+            or collection_id in seen_ids
+            or not isinstance(name, str)
+        ):
+            continue
+        name = name.strip()[:100]
+        if not name:
+            continue
+        validated.append({"id": collection_id, "name": name})
+        seen_ids.add(collection_id)
+
+    if "default" not in seen_ids:
+        validated.insert(0, {"id": "default", "name": "Default"})
+    if validated != collections:
+        write_json(path, {"collections": validated})
+    return validated
 
 
 def find_collection(collection_id: str) -> Collection | None:
@@ -206,7 +237,20 @@ def manifest_preview_array(array: np.ndarray, channels: int | None = None) -> np
 
 
 def is_valid_image(image: torch.Tensor | None) -> bool:
-    return torch.is_tensor(image) and image.ndim == 4 and image.shape[-1] >= 3
+    return (
+        torch.is_tensor(image)
+        and image.ndim == 4
+        and all(size > 0 for size in image.shape[:3])
+        and image.shape[-1] >= 3
+    )
+
+
+def is_valid_mask(mask: torch.Tensor | None) -> bool:
+    return (
+        torch.is_tensor(mask)
+        and mask.ndim in (2, 3, 4)
+        and all(size > 0 for size in mask.shape)
+    )
 
 
 def save_record(
@@ -223,6 +267,8 @@ def save_record(
         raise ValueError("Unknown gallery collection")
     if image is not None and not is_valid_image(image):
         raise ValueError("Pose Gallery: IMAGE input must be a valid IMAGE tensor.")
+    if not isinstance(masks, list) or any(not is_valid_mask(mask) for mask in masks):
+        raise ValueError("Pose Gallery: MASK inputs must be non-empty 2D, 3D, or 4D tensors.")
 
     record_id = uuid.uuid4().hex
     directory = record_dir(record_id)
@@ -260,6 +306,7 @@ def save_record(
             "collection_id": collection_id,
             "created": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "pose_json": pose_json,
+            "pose_person_count": count_pose_people(pose_json),
             "general_tags": general_tags,
             "person_tags": person_tags,
             "mask_count": len(masks),
@@ -287,4 +334,10 @@ def load_record(record_id: str) -> tuple[RecordManifest, torch.Tensor | None, li
             torch.from_numpy(np.array(data[f"mask_{index:04d}"], dtype=np.float32, copy=True))
             for index in range(int(manifest.get("mask_count", 0)))
         ]
+    if image is not None and not is_valid_image(image):
+        raise ValueError("Pose Gallery: the selected record contains invalid IMAGE data.")
+    if any(not is_valid_mask(mask) for mask in masks):
+        raise ValueError("Pose Gallery: the selected record contains invalid MASK data.")
+    if not isinstance(manifest.get("pose_person_count"), int):
+        manifest["pose_person_count"] = count_pose_people(str(manifest.get("pose_json", "")))
     return manifest, image, masks
