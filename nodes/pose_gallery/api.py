@@ -204,6 +204,37 @@ async def _delete_record(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "id": record_id})
 
 
+@routes.patch("/mincore/pose_gallery/records/{record_id}")
+async def _move_record(request: web.Request) -> web.Response:
+    record_id = request.match_info.get("record_id", "")
+    try:
+        payload = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    if not isinstance(payload, dict):
+        return web.json_response({"error": "Invalid payload"}, status=400)
+    collection_id = payload.get("collection_id")
+    if not isinstance(collection_id, str):
+        return web.json_response({"error": "Invalid collection ID"}, status=400)
+
+    try:
+        manifest = gallery_store.move_record(record_id, collection_id)
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Could not read the gallery record or collection index"}, status=500)
+    except ValueError as error:
+        status = 404 if str(error) == "Unknown gallery collection" else 400
+        return web.json_response({"error": str(error)}, status=status)
+    except OSError:
+        return web.json_response({"error": "Could not move the gallery record"}, status=500)
+    if manifest is None:
+        return web.json_response({"error": "Record not found"}, status=404)
+    return web.json_response({
+        "ok": True,
+        "id": record_id,
+        "collection_id": manifest["collection_id"],
+    })
+
+
 @routes.get("/mincore/pose_gallery/records/{record_id}/assets/{filename}")
 async def _get_record_asset(request: web.Request) -> web.StreamResponse:
     record_id = request.match_info.get("record_id", "")

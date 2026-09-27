@@ -101,6 +101,10 @@ Select a record and use **Delete record** in the side panel to permanently remov
 it and its stored files. A confirmation dialog opens inside the gallery. If the
 deleted record is currently selected as the node output, the node switches back
 to its connected inputs.
+Use **Move to collection** to change the selected record's collection without
+deleting or copying its data. Choose a destination in the dialog; the gallery
+then opens that collection with the record selected. Its ID and current node
+output stay unchanged.
 
 ## Outputs
 
@@ -135,6 +139,8 @@ Each saved record contains the original tensor data in a NumPy archive, plus
 PNG previews for browsing. Small card thumbnails are generated on demand and
 stored alongside those previews. Pose images are regenerated from the stored
 JSON on execution. Records are written to the collection selected in the gallery.
-Use **Delete collection** to permanently remove a non-default collection and all
-of its saved records; the confirmation shows how many records will be deleted.
+Moving a record updates its collection assignment while retaining the record and
+all stored files. Use **Delete collection** to permanently remove a non-default
+collection and all of its saved records; the confirmation shows how many records
+will be deleted.
 The `Default` collection is protected from deletion.

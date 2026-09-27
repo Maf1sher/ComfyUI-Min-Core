@@ -74,6 +74,55 @@ export function closeDeleteConfirmation(state, restoreFocus = true) {
     if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state @param {GalleryRecord | null} record */
+export function openMoveDialog(state, record) {
+    const dialog = state.root.querySelector('[data-role="move-dialog"]');
+    if (!record || !dialog || state.moveDialogOpen || state.movingRecordId != null) return;
+    const destinations = state.collections.filter((collection) => collection.id !== record.collection_id);
+    if (!destinations.length) return;
+
+    state.pendingMoveRecord = record;
+    state.moveDialogReturnFocus = document.activeElement;
+    state.root.querySelector('[data-role="move-record-name"]').textContent = record.name || "Untitled record";
+    const source = state.collections.find((collection) => collection.id === record.collection_id);
+    state.root.querySelector('[data-role="move-source-name"]').textContent = source?.name || "current collection";
+    const select = state.root.querySelector('[data-role="move-collection"]');
+    select.replaceChildren();
+    for (const collection of destinations) {
+        const option = document.createElement("option");
+        option.value = collection.id;
+        option.textContent = collection.name;
+        select.appendChild(option);
+    }
+
+    state.moveDialogOpen = true;
+    dialog.hidden = false;
+    select.focus({ preventScroll: true });
+}
+
+/** @param {GalleryPanelState} state */
+export function closeMoveDialog(state, restoreFocus = true) {
+    const dialog = state.root.querySelector('[data-role="move-dialog"]');
+    if (!dialog || !state.moveDialogOpen) return;
+    state.moveDialogOpen = false;
+    dialog.hidden = true;
+    state.pendingMoveRecord = null;
+    const returnFocus = state.moveDialogReturnFocus;
+    state.moveDialogReturnFocus = null;
+    if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+}
+
+/** @param {GalleryPanelState} state @param {(state: GalleryPanelState, record: GalleryRecord, collectionId: string) => Promise<void>} moveSelectedRecord */
+export function submitMoveDialog(state, moveSelectedRecord) {
+    if (!state.moveDialogOpen || !state.pendingMoveRecord) return;
+    const collectionId = state.root.querySelector('[data-role="move-collection"]').value;
+    if (!collectionId || collectionId === state.pendingMoveRecord.collection_id) return;
+    const record = state.pendingMoveRecord;
+    closeMoveDialog(state, false);
+    state.root.querySelector('[data-role="search"]').focus({ preventScroll: true });
+    void moveSelectedRecord(state, record, collectionId);
+}
+
 /** @param {GalleryPanelState} state @param {{ id: string, name: string } | null} collection */
 export function openDeleteCollectionConfirmation(state, collection) {
     const dialog = state.root.querySelector('[data-role="delete-collection-confirmation"]');

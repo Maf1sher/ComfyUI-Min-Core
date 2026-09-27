@@ -2,16 +2,19 @@ import {
     closeDeleteConfirmation,
     closeDeleteCollectionConfirmation,
     closeNewCollectionDialog,
+    closeMoveDialog,
     closePreviewLightbox,
     closeSaveDialog,
     closeSettings,
     openDeleteConfirmation,
     openDeleteCollectionConfirmation,
     openNewCollectionDialog,
+    openMoveDialog,
     openPreviewLightbox,
     openSaveDialog,
     openSettings,
     submitNewCollectionDialog,
+    submitMoveDialog,
     submitSaveDialog,
 } from "./dialogs.js";
 import { resizePreviewCanvas, setPreviewLineWidth } from "./preview.js";
@@ -46,6 +49,7 @@ export function bindPanelEvents(state, actions) {
         useSelectedRecord,
         toggleCurrentInputs,
         deleteSelectedRecord,
+        moveSelectedRecord,
         deleteCollection,
         showCurrentState,
         loadRecords,
@@ -66,8 +70,16 @@ export function bindPanelEvents(state, actions) {
         void toggleCurrentInputs(state);
     });
     root.querySelector('[data-action="delete-record"]').addEventListener("click", () => {
-        if (!state.selectionPending && state.deletingRecordId == null && !state.loadingCurrentInputs && !state.saveQueued) {
+        if (!state.selectionPending && state.deletingRecordId == null && state.movingRecordId == null
+            && state.deletingCollectionId == null && !state.loadingCurrentInputs && !state.savingRecord && !state.saveQueued) {
             openDeleteConfirmation(state, state.selectedRecord);
+        }
+    });
+    root.querySelector('[data-action="move-record"]').addEventListener("click", () => {
+        if (!state.selectionPending && state.deletingRecordId == null && state.movingRecordId == null
+            && state.deletingCollectionId == null && !state.loadingCurrentInputs
+            && !state.savingRecord && !state.saveQueued) {
+            openMoveDialog(state, state.selectedRecord);
         }
     });
     root.querySelector('[data-action="delete-collection"]').addEventListener("click", () => {
@@ -106,6 +118,14 @@ export function bindPanelEvents(state, actions) {
     });
     deleteConfirmation.addEventListener("click", (event) => {
         if (event.target === deleteConfirmation) closeDeleteConfirmation(state);
+    });
+    const moveDialog = root.querySelector('[data-role="move-dialog"]');
+    moveDialog.querySelector('[data-action="cancel-move"]').addEventListener("click", () => closeMoveDialog(state));
+    moveDialog.querySelector('[data-action="confirm-move"]').addEventListener("click", () => {
+        submitMoveDialog(state, moveSelectedRecord);
+    });
+    moveDialog.addEventListener("click", (event) => {
+        if (event.target === moveDialog) closeMoveDialog(state);
     });
     const deleteCollectionConfirmation = root.querySelector('[data-role="delete-collection-confirmation"]');
     deleteCollectionConfirmation.querySelector('[data-action="cancel-delete-collection"]').addEventListener("click", () => closeDeleteCollectionConfirmation(state));
@@ -189,6 +209,11 @@ export function bindPanelEvents(state, actions) {
                 closeDeleteConfirmation(state);
                 return;
             }
+            if (state.moveDialogOpen) {
+                event.preventDefault();
+                closeMoveDialog(state);
+                return;
+            }
             if (state.deleteCollectionConfirmOpen) {
                 event.preventDefault();
                 closeDeleteCollectionConfirmation(state);
@@ -225,13 +250,15 @@ export function bindPanelEvents(state, actions) {
                 ? state.root.querySelector('[data-role="save-dialog"]')
                 : state.deleteConfirmOpen
                     ? state.root.querySelector('[data-role="delete-confirmation"]')
-                    : state.deleteCollectionConfirmOpen
-                        ? state.root.querySelector('[data-role="delete-collection-confirmation"]')
-                        : state.settingsOpen
-                            ? state.root.querySelector('[data-role="settings-dialog"]')
-                            : state.previewExpanded
-                                ? state.root.querySelector('[data-role="preview-lightbox"]')
-                                : panel;
+                    : state.moveDialogOpen
+                        ? state.root.querySelector('[data-role="move-dialog"]')
+                        : state.deleteCollectionConfirmOpen
+                            ? state.root.querySelector('[data-role="delete-collection-confirmation"]')
+                            : state.settingsOpen
+                                ? state.root.querySelector('[data-role="settings-dialog"]')
+                                : state.previewExpanded
+                                    ? state.root.querySelector('[data-role="preview-lightbox"]')
+                                    : panel;
         const focusable = Array.from(focusScope.querySelectorAll(
             'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]',
         )).filter((element) => !element.hidden && element.getClientRects().length > 0);

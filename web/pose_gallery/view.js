@@ -55,6 +55,7 @@ export function buildGalleryHtml(headingId) {
                     <div class="mcore-pg-record-actions" role="group" aria-label="Record actions">
                         <button class="mcore-pg-button mcore-pg-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
                         <button class="mcore-pg-button mcore-pg-current-inputs" data-action="show-current-inputs" type="button">Show current inputs</button>
+                        <button class="mcore-pg-button" data-action="move-record" type="button" disabled>Move to collection</button>
                         <button class="mcore-pg-button mcore-pg-delete-record" data-action="delete-record" type="button" disabled>Delete record</button>
                     </div>
                     <div class="mcore-pg-gallery-details">
@@ -154,6 +155,19 @@ export function buildGalleryHtml(headingId) {
                     <footer class="mcore-pg-confirm-actions">
                         <button class="mcore-pg-button" data-action="cancel-delete" type="button">Cancel</button>
                         <button class="mcore-pg-button mcore-pg-delete-confirm-button" data-action="confirm-delete" type="button">Delete record</button>
+                    </footer>
+                </section>
+            </div>
+            <div class="mcore-pg-confirm-dialog" data-role="move-dialog" role="dialog" aria-modal="true" aria-labelledby="${headingId}-move-title" aria-describedby="${headingId}-move-help" hidden>
+                <section class="mcore-pg-confirm-panel">
+                    <div class="mcore-pg-eyebrow">Pose Gallery</div>
+                    <h2 class="mcore-pg-confirm-title" id="${headingId}-move-title">Move record</h2>
+                    <p class="mcore-pg-confirm-copy" id="${headingId}-move-help">Move <strong data-role="move-record-name"></strong> from <strong data-role="move-source-name"></strong> to another collection. The record and its files will be kept.</p>
+                    <label class="mcore-pg-save-label" for="${headingId}-move-collection">Destination collection</label>
+                    <select class="mcore-pg-save-input" id="${headingId}-move-collection" data-role="move-collection"></select>
+                    <footer class="mcore-pg-confirm-actions">
+                        <button class="mcore-pg-button" data-action="cancel-move" type="button">Cancel</button>
+                        <button class="mcore-pg-button mcore-pg-save-submit" data-action="confirm-move" type="button">Move record</button>
                     </footer>
                 </section>
             </div>

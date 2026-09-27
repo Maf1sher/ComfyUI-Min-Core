@@ -90,6 +90,7 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         selectionPending: false,
         selectionTargetRecordId: null,
         deletingRecordId: null,
+        movingRecordId: null,
         deletingCollectionId: null,
         usingRecord: false,
         retryCollections: false,
@@ -112,6 +113,9 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         deleteConfirmOpen: false,
         deleteConfirmReturnFocus: null,
         pendingDeleteRecord: null,
+        moveDialogOpen: false,
+        moveDialogReturnFocus: null,
+        pendingMoveRecord: null,
         deleteCollectionConfirmOpen: false,
         deleteCollectionConfirmReturnFocus: null,
         pendingDeleteCollection: null,
@@ -217,6 +221,7 @@ function openGallery(node) {
         useSelectedRecord,
         toggleCurrentInputs,
         deleteSelectedRecord,
+        moveSelectedRecord,
         deleteCollection,
         showCurrentState,
         loadRecords,
@@ -334,7 +339,7 @@ async function loadRecords(state) {
 
 /** @param {GalleryPanelState} state @param {string} recordId */
 async function selectRecord(state, recordId) {
-    if (state.deletingRecordId === String(recordId)) return;
+    if (state.deletingRecordId === String(recordId) || state.movingRecordId != null) return;
     const requestId = ++state.selectionRequestId;
     state.selectionPending = true;
     state.selectionTargetRecordId = String(recordId);
@@ -363,10 +368,16 @@ async function selectRecord(state, recordId) {
 
 /** @param {GalleryPanelState} state */
 function updateRecordActions(state) {
-    const busy = state.selectionPending || state.deletingRecordId != null || state.usingRecord
-        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    const busy = state.selectionPending || state.deletingRecordId != null || state.deletingCollectionId != null || state.usingRecord
+        || state.movingRecordId != null || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     state.root.querySelector('[data-action="use-record"]').disabled = !state.selectedRecord || busy;
     state.root.querySelector('[data-action="delete-record"]').disabled = !state.selectedRecord || busy;
+    const moveButton = state.root.querySelector('[data-action="move-record"]');
+    if (moveButton) {
+        const hasDestination = state.selectedRecord
+            && state.collections.some((collection) => collection.id !== state.selectedRecord.collection_id);
+        moveButton.disabled = !state.selectedRecord || !hasDestination || busy;
+    }
     updateCollectionActions(state);
 }
 
@@ -374,23 +385,57 @@ function updateRecordActions(state) {
 function updateCollectionActions(state) {
     const button = state.root.querySelector('[data-action="delete-collection"]');
     const busy = state.deletingCollectionId != null || state.deletingRecordId != null || state.usingRecord
-        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+        || state.movingRecordId != null || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     button.disabled = state.selectedCollection === "default"
         || state.recordsStatus !== "ready"
         || Boolean(state.recordsError)
         || busy;
-    state.root.querySelector('[data-role="collection"]').disabled = state.deletingCollectionId != null;
-    state.root.querySelector('[data-action="new-collection"]').disabled = state.deletingCollectionId != null;
+    state.root.querySelector('[data-role="collection"]').disabled = state.deletingCollectionId != null || state.movingRecordId != null;
+    state.root.querySelector('[data-action="new-collection"]').disabled = state.deletingCollectionId != null || state.movingRecordId != null;
     const saveButton = state.root.querySelector('[data-action="save-current"]');
     if (saveButton) {
-        saveButton.disabled = state.deletingCollectionId != null
+        saveButton.disabled = state.deletingCollectionId != null || state.movingRecordId != null
             || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    }
+}
+
+/** @param {GalleryPanelState} state @param {GalleryRecord} record @param {string} collectionId */
+async function moveSelectedRecord(state, record, collectionId) {
+    if (!record || state.movingRecordId != null || state.deletingRecordId != null || state.deletingCollectionId != null
+        || state.selectionPending || state.usingRecord || state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
+    const recordId = String(record.id);
+    const destination = state.collections.find((collection) => collection.id === collectionId);
+    if (!destination || destination.id === record.collection_id) return;
+
+    state.movingRecordId = recordId;
+    updateRecordActions(state);
+    try {
+        await jsonRequest(`/mincore/pose_gallery/records/${encodeURIComponent(recordId)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ collection_id: destination.id }),
+        });
+        if (state.closing) return;
+
+        state.selectedCollection = destination.id;
+        state.root.querySelector('[data-role="collection"]').value = destination.id;
+        setWidget(state.node, "gallery_collection_id", destination.id);
+        showCurrentState(state, {});
+        const loaded = await loadRecords(state);
+        if (loaded && !state.closing) await selectRecord(state, recordId);
+        toast("success", "Pose Gallery", `Moved: ${record.name || "Untitled record"} → ${destination.name}`);
+    } catch (error) {
+        toast("error", "Pose Gallery", String(error));
+    } finally {
+        if (state.movingRecordId === recordId) state.movingRecordId = null;
+        updateRecordActions(state);
     }
 }
 
 /** @param {GalleryPanelState} state @param {GalleryRecord} record */
 async function deleteSelectedRecord(state, record) {
-    if (!record || state.deletingRecordId != null || state.selectionPending || state.usingRecord) return;
+    if (!record || state.deletingRecordId != null || state.movingRecordId != null
+        || state.deletingCollectionId != null || state.selectionPending || state.usingRecord) return;
     const recordId = String(record.id);
     const name = record.name || "Untitled record";
 
@@ -534,7 +579,7 @@ function updateCurrentInputsButton(state) {
     const button = state.root.querySelector('[data-action="show-current-inputs"]');
     if (!button) return;
     const nodeAlreadyShowsInputs = state.node._poseGalleryState?.source === "inputs";
-    button.disabled = state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    button.disabled = state.movingRecordId != null || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     button.textContent = state.loadingCurrentInputs
         ? "Loading current inputs…"
         : state.savingRecord || state.saveQueued ? "Saving record…"
@@ -542,7 +587,8 @@ function updateCurrentInputsButton(state) {
             : nodeAlreadyShowsInputs ? "Refresh current inputs" : "Show current inputs";
     button.setAttribute("aria-pressed", String(state.showingCurrentInputs));
     const saveButton = state.root.querySelector('[data-action="save-current"]');
-    if (saveButton) saveButton.disabled = state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    if (saveButton) saveButton.disabled = state.deletingCollectionId != null || state.movingRecordId != null
+        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     updateRecordActions(state);
 }
 
@@ -578,7 +624,8 @@ function showCurrentInputs(state, preview) {
 
 /** @param {GalleryPanelState} state */
 async function toggleCurrentInputs(state) {
-    if (state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
+    if (state.movingRecordId != null || state.deletingCollectionId != null
+        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
     if (state.showingCurrentInputs) {
         if (state.selectedRecord) showRecord(state, state.selectedRecord);
         else if (state.node._poseGalleryState) showNodeState(state, state.node._poseGalleryState);
@@ -617,7 +664,8 @@ function showNodeState(panelState, nodeState) {
 
 /** @param {GalleryPanelState} state */
 async function saveCurrent(state, name) {
-    if (state.savingRecord || state.saveQueued || state.loadingCurrentInputs) return;
+    if (state.movingRecordId != null || state.deletingCollectionId != null
+        || state.savingRecord || state.saveQueued || state.loadingCurrentInputs) return;
     state.savingRecord = true;
     updateCurrentInputsButton(state);
     try {
@@ -645,7 +693,8 @@ async function saveCurrent(state, name) {
 
 /** @param {GalleryPanelState} state */
 async function useSelectedRecord(state) {
-    if (!state.selectedRecord || state.deletingRecordId != null || state.selectionPending || state.usingRecord
+    if (!state.selectedRecord || state.deletingRecordId != null || state.movingRecordId != null
+        || state.deletingCollectionId != null || state.selectionPending || state.usingRecord
         || state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
     const selectedRecord = state.selectedRecord;
     state.usingRecord = true;

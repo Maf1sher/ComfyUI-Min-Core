@@ -29,6 +29,7 @@ __all__ = [
     "list_records",
     "load_record",
     "manifest_preview_array",
+    "move_record",
     "read_collections",
     "read_manifest",
     "record_dir",
@@ -246,6 +247,21 @@ def read_manifest(record_id: str) -> RecordManifest | None:
         manifest = json.load(file)
     if not isinstance(manifest, dict) or manifest.get("id") != record_id:
         return None
+    return manifest
+
+
+def move_record(record_id: str, collection_id: str) -> RecordManifest | None:
+    if not isinstance(collection_id, str) or not _COLLECTION_ID.fullmatch(collection_id):
+        raise ValueError("Invalid gallery collection ID")
+    if find_collection(collection_id) is None:
+        raise ValueError("Unknown gallery collection")
+
+    manifest = read_manifest(record_id)
+    if manifest is None:
+        return None
+    if manifest.get("collection_id") != collection_id:
+        manifest["collection_id"] = collection_id
+        write_json(os.path.join(record_dir(record_id), "record.json"), manifest)
     return manifest
 
 

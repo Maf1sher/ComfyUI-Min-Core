@@ -40,6 +40,7 @@ export interface GalleryPanelState {
     selectionPending: boolean;
     selectionTargetRecordId: string | null;
     deletingRecordId: string | null;
+    movingRecordId: string | null;
     deletingCollectionId: string | null;
     usingRecord: boolean;
     retryCollections: boolean;
@@ -63,6 +64,9 @@ export interface GalleryPanelState {
     deleteConfirmOpen: boolean;
     deleteConfirmReturnFocus: any;
     pendingDeleteRecord: GalleryRecord | null;
+    moveDialogOpen: boolean;
+    moveDialogReturnFocus: any;
+    pendingMoveRecord: GalleryRecord | null;
     deleteCollectionConfirmOpen: boolean;
     deleteCollectionConfirmReturnFocus: any;
     pendingDeleteCollection: GalleryCollection | null;
@@ -87,6 +91,7 @@ export interface GalleryPanelActions {
     useSelectedRecord(state: GalleryPanelState): Promise<void>;
     toggleCurrentInputs(state: GalleryPanelState): Promise<void>;
     deleteSelectedRecord(state: GalleryPanelState, record: GalleryRecord): Promise<void>;
+    moveSelectedRecord(state: GalleryPanelState, record: GalleryRecord, collectionId: string): Promise<void>;
     deleteCollection(state: GalleryPanelState, collection: GalleryCollection): Promise<void>;
     showCurrentState(state: GalleryPanelState, preview: Record<string, any>): void;
     loadRecords(state: GalleryPanelState): Promise<boolean>;
