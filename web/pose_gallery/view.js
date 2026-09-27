@@ -52,10 +52,18 @@ export function buildGalleryHtml(headingId) {
                         <button class="mcore-pg-button mcore-pg-preview-expand" data-action="expand-preview" type="button" aria-label="Expand preview" aria-expanded="false" title="Expand preview">⤢</button>
                     </div>
                     <div class="mcore-pg-layer-controls" data-role="layer-controls" role="group" aria-label="Preview layers"></div>
-                    <div class="mcore-pg-record-actions" role="group" aria-label="Record actions">
-                        <button class="mcore-pg-button mcore-pg-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
-                        <button class="mcore-pg-button mcore-pg-current-inputs" data-action="show-current-inputs" type="button">Show current inputs</button>
-                        <button class="mcore-pg-button mcore-pg-save-current-btn" data-action="save-current" type="button" title="Save current inputs to the selected collection">Save current inputs</button>
+                    <div class="mcore-pg-record-actions" role="group" aria-label="Preview and record actions">
+                        <div class="mcore-pg-action-section" role="group" aria-label="Selected saved record">
+                            <div class="mcore-pg-action-heading">Selected record</div>
+                            <button class="mcore-pg-button mcore-pg-gallery-insert-btn" data-action="use-record" disabled>Use selected record</button>
+                        </div>
+                        <div class="mcore-pg-action-section" role="group" aria-label="Connected inputs">
+                            <div class="mcore-pg-action-heading">Connected inputs</div>
+                            <div class="mcore-pg-connected-input-actions" role="group" aria-label="Connected input actions">
+                                <button class="mcore-pg-button mcore-pg-current-inputs" data-action="show-current-inputs" type="button">Preview inputs</button>
+                                <button class="mcore-pg-button" data-action="save-current" type="button" title="Save connected inputs as a new record in the selected collection">Save as record</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="mcore-pg-gallery-details">
                         <div class="mcore-pg-gallery-details-empty" data-role="details-empty">Select a record to inspect its image, pose, masks, and tags.</div>

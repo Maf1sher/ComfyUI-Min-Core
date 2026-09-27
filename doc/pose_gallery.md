@@ -32,22 +32,21 @@ the machine where they are opened.
   back to the connected inputs.
 
 Inputs are evaluated lazily. In gallery mode the node can load a selected
-record without running its upstream inputs. The gallery's **Save current
-inputs** button in the preview panel opens an in-gallery dialog for an optional
-record name, then queues the node to capture connected data in the selected
-collection. Choose the destination collection in the gallery toolbar. Leave the
-name blank to use an automatic name. The **image** is optional; pose JSON, masks,
-and tags can be saved without one. Any connected image must be a valid IMAGE
-tensor.
+record without running its upstream inputs. The preview panel's **Save as
+record** button opens an in-gallery dialog for an optional record name, then
+queues the node to capture connected data in the selected collection. Choose the
+destination collection in the gallery toolbar. Leave the name blank to use an
+automatic name. The **image** is optional; pose JSON, masks, and tags can be
+saved without one. Any connected image must be a valid IMAGE tensor.
 Pose JSON is limited to 5 MB, and rendered canvases are limited to 16,384 pixels
 per side and 20 megapixels. Masks must be non-empty 2D, 3D, or 4D tensors. When
 person-tag slots are configured but their count differs from the people found in
 the pose JSON, the gallery shows a warning; execution is not blocked.
 
-Use **Show current inputs** in the side panel to run the connected inputs and
+Use **Preview inputs** in the side panel to run the connected inputs and
 preview available layers (the image if connected, pose, and masks) and tags
 without saving a record or changing the selected gallery output. When the latest
-node output already uses inputs, the button reads **Refresh current inputs**.
+node output already uses inputs, the button reads **Refresh preview**.
 Both paths display the same details. **Show node output** returns to the current
 output preview.
 
@@ -78,10 +77,13 @@ preview uses a square frame. Its layer controls remain fully visible while
 long record details scroll independently. Use its expand button to inspect the
 image in a larger overlay without changing the record list layout. The layer
 controls sit below the expanded image so they do not cover it.
-The side panel keeps **Use this record** as its primary action and
-**Show current inputs** as a secondary control. Record management actions are
-in the gallery toolbar. Each card has a separate checkbox, so selecting records
-for group actions does not change the record shown in the preview.
+The side panel separates actions for the selected saved record from actions for
+connected inputs. Use **Use selected record** to make the previewed record the
+node output; preview or save connected inputs in their own section. Saving adds
+a new record to the collection selected in the toolbar. Record management
+actions are in the gallery toolbar. Each card has a separate checkbox, so
+selecting records for group actions does not change the record shown in the
+preview.
 General tags are shown separately from per-person tags. Each person's tags are
 shown in their own detail row, using the same right-aligned tag styling as the
 other record details. The record details also show the source image resolution
