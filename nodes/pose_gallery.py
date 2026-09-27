@@ -1,11 +1,13 @@
 """Pose Gallery Min: persist and browse complete image/pose/mask/tag records."""
 
 import json
+import math
 import os
 import re
 import shutil
 import time
 import uuid
+from io import BytesIO
 
 import numpy as np
 import torch
@@ -267,6 +269,39 @@ class _PoseGalleryUI(_UIOutput):
 
 
 routes = PromptServer.instance.routes
+
+
+@routes.post("/mincore/pose_gallery/preview_pose")
+async def _render_pose_preview(request: web.Request) -> web.Response:
+    try:
+        payload = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    if not isinstance(payload, dict):
+        return web.json_response({"error": "Invalid payload"}, status=400)
+
+    pose_json = payload.get("pose_json")
+    if not isinstance(pose_json, str) or len(pose_json) > 5_000_000:
+        return web.json_response({"error": "Invalid pose data"}, status=400)
+    try:
+        line_width_scale = float(payload.get("line_width_scale", 1.0))
+    except (TypeError, ValueError, OverflowError):
+        return web.json_response({"error": "Invalid line width scale"}, status=400)
+    if not math.isfinite(line_width_scale) or not 0.5 <= line_width_scale <= 2.5:
+        return web.json_response({"error": "Line width scale must be between 0.5 and 2.5"}, status=400)
+
+    try:
+        pose_array = render_pose_image(pose_json, line_width_scale=line_width_scale)
+        png = _manifest_preview_array(pose_array, channels=3)
+        buffer = BytesIO()
+        PILImage.fromarray(png, "RGB").save(buffer, format="PNG")
+    except Exception:
+        return web.json_response({"error": "Could not render the OpenPose preview"}, status=400)
+    return web.Response(
+        body=buffer.getvalue(),
+        content_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @routes.get("/mincore/pose_gallery/collections")

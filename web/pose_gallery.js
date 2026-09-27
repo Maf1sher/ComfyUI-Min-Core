@@ -1,7 +1,12 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 import { jsonRequest, queueNode, toast } from "./pose_gallery/api.js";
-import { resizePreviewCanvas, setPreviewSource } from "./pose_gallery/preview.js";
+import {
+    getStoredPreviewLineWidth,
+    resizePreviewCanvas,
+    setPreviewLineWidth,
+    setPreviewSource,
+} from "./pose_gallery/preview.js";
 import {
     buildGalleryHtml,
     createThumbnailObserver,
@@ -61,6 +66,27 @@ function closePreviewLightbox(state) {
     lightbox.hidden = true;
     const returnFocus = state.previewReturnFocus;
     state.previewReturnFocus = null;
+    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+}
+
+function openSettings(state) {
+    const settings = state.root.querySelector('[data-role="settings-dialog"]');
+    if (!settings || state.settingsOpen) return;
+    state.settingsReturnFocus = document.activeElement;
+    state.settingsOpen = true;
+    state.root.querySelector('[data-action="settings"]').setAttribute("aria-expanded", "true");
+    settings.hidden = false;
+    settings.querySelector('[data-action="close-settings"]').focus({ preventScroll: true });
+}
+
+function closeSettings(state) {
+    const settings = state.root.querySelector('[data-role="settings-dialog"]');
+    if (!settings || !state.settingsOpen) return;
+    state.settingsOpen = false;
+    state.root.querySelector('[data-action="settings"]').setAttribute("aria-expanded", "false");
+    settings.hidden = true;
+    const returnFocus = state.settingsReturnFocus;
+    state.settingsReturnFocus = null;
     if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
@@ -127,8 +153,13 @@ function openGallery(node) {
         previewImages: [],
         previewLayers: [],
         previewLayerVisibility: {},
+        previewLineWidth: getStoredPreviewLineWidth(),
+        posePreviewRequestId: 0,
+        posePreviewTimer: null,
         previewExpanded: false,
         previewReturnFocus: null,
+        settingsOpen: false,
+        settingsReturnFocus: null,
         thumbnailObserver: null,
         restoreFocus,
         resizeHandler: null,
@@ -138,6 +169,7 @@ function openGallery(node) {
     node._poseGalleryPanel = state;
     state.thumbnailObserver = createThumbnailObserver(root);
     setGalleryViewMode(state, state.viewMode);
+    setPreviewLineWidth(state, state.previewLineWidth);
 
     const originalClose = panel.close.bind(panel);
     let closeTimer = null;
@@ -147,6 +179,10 @@ function openGallery(node) {
         window.removeEventListener("keydown", state.keydownHandler);
         state.thumbnailObserver?.disconnect();
         backdrop.remove();
+        if (state.posePreviewTimer != null) window.clearTimeout(state.posePreviewTimer);
+        state.previewLayers.forEach((layer) => {
+            if (layer.previewObjectUrl) URL.revokeObjectURL(layer.previewObjectUrl);
+        });
         state.previewImages.forEach((image) => { image.onload = null; image.onerror = null; });
         if (node._poseGalleryPanel === state) node._poseGalleryPanel = null;
         if (state.restoreFocus?.isConnected) state.restoreFocus.focus({ preventScroll: true });
@@ -179,10 +215,24 @@ function openGallery(node) {
     root.querySelector('[data-action="save-current"]').addEventListener("click", () => saveCurrent(state));
     root.querySelector('[data-action="use-record"]').addEventListener("click", () => useSelectedRecord(state));
     root.querySelector('[data-action="expand-preview"]').addEventListener("click", () => openPreviewLightbox(state));
+    root.querySelector('[data-action="settings"]').addEventListener("click", () => openSettings(state));
     const previewLightbox = root.querySelector('[data-role="preview-lightbox"]');
     previewLightbox.querySelector('[data-action="close-preview"]').addEventListener("click", () => closePreviewLightbox(state));
     previewLightbox.addEventListener("click", (event) => {
         if (event.target === previewLightbox) closePreviewLightbox(state);
+    });
+    const settingsDialog = root.querySelector('[data-role="settings-dialog"]');
+    settingsDialog.querySelectorAll('[data-action="close-settings"]').forEach((button) => {
+        button.addEventListener("click", () => closeSettings(state));
+    });
+    settingsDialog.addEventListener("click", (event) => {
+        if (event.target === settingsDialog) closeSettings(state);
+    });
+    settingsDialog.querySelector('[data-role="preview-line-width"]').addEventListener("input", (event) => {
+        setPreviewLineWidth(state, Number(event.target.value) / 100);
+    });
+    settingsDialog.querySelector('[data-action="reset-preview-settings"]').addEventListener("click", () => {
+        setPreviewLineWidth(state, 1);
     });
     root.querySelector('[data-action="view-mode"]').addEventListener("click", () => {
         const index = GALLERY_VIEW_MODES.indexOf(state.viewMode);
@@ -207,6 +257,11 @@ function openGallery(node) {
     state.keydownHandler = (event) => {
         if (!panel.contains(document.activeElement) || event.defaultPrevented || state.closing) return;
         if (event.key === "Escape") {
+            if (state.settingsOpen) {
+                event.preventDefault();
+                closeSettings(state);
+                return;
+            }
             if (state.previewExpanded) {
                 event.preventDefault();
                 closePreviewLightbox(state);
@@ -224,9 +279,11 @@ function openGallery(node) {
             return;
         }
         if (event.key !== "Tab") return;
-        const focusScope = state.previewExpanded
-            ? state.root.querySelector('[data-role="preview-lightbox"]')
-            : panel;
+        const focusScope = state.settingsOpen
+            ? state.root.querySelector('[data-role="settings-dialog"]')
+            : state.previewExpanded
+                ? state.root.querySelector('[data-role="preview-lightbox"]')
+                : panel;
         const focusable = Array.from(focusScope.querySelectorAll(
             'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]',
         )).filter((element) => !element.hidden && element.getClientRects().length > 0);
@@ -380,6 +437,7 @@ function showCurrentState(state, preview) {
     setPreviewSource(state, {
         image: preview.image,
         pose: preview.pose,
+        pose_json: preview.pose_json,
         masks: preview.masks || [],
         general_tags: preview.general_tags || "",
         person_tags: preview.person_tags || [],
@@ -390,6 +448,7 @@ function showRecord(state, record) {
     setPreviewSource(state, {
         image: record.assets.image,
         pose: record.assets.pose,
+        pose_json: record.pose_json,
         masks: record.assets.masks || [],
         general_tags: record.general_tags,
         person_tags: record.person_tags || [],

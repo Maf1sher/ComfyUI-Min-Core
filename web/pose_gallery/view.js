@@ -1,4 +1,9 @@
-import { drawRecordThumbnail } from "./preview.js";
+import {
+    drawRecordThumbnail,
+    PREVIEW_LINE_WIDTH_MAX,
+    PREVIEW_LINE_WIDTH_MIN,
+    PREVIEW_LINE_WIDTH_STEP,
+} from "./preview.js";
 
 export const GALLERY_VIEW_MODES = ["medium", "large", "tiles"];
 const GALLERY_VIEW_MODE_KEY = "openpose_editor.gallery.viewMode";
@@ -38,7 +43,10 @@ export function buildGalleryHtml(headingId) {
                                     <h1 class="mcore-pg-heading" id="${headingId}">Pose Gallery</h1>
                                     <p class="mcore-pg-subtitle">Browse saved image, pose, mask, and tag records.</p>
                                 </div>
-                                <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-close" data-action="close" type="button" title="Close gallery">Close</button>
+                                <div class="mcore-pg-heading-actions">
+                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-settings-button" data-action="settings" type="button" aria-haspopup="dialog" aria-expanded="false">Settings</button>
+                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-close" data-action="close" type="button" title="Close gallery">Close</button>
+                                </div>
                             </div>
                             <div class="mcore-pg-toolbar">
                                 <div class="mcore-pg-toolbar-group mcore-pg-library-tools">
@@ -62,6 +70,33 @@ export function buildGalleryHtml(headingId) {
             <div class="mcore-pg-preview-lightbox" data-role="preview-lightbox" role="dialog" aria-modal="true" aria-label="Expanded preview" hidden>
                 <canvas class="mcore-pg-expanded-preview" data-role="expanded-preview" aria-label="Expanded selected record preview"></canvas>
                 <button class="mcore-pg-button mcore-pg-preview-lightbox-close" data-action="close-preview" type="button">Close preview</button>
+            </div>
+            <div class="mcore-pg-settings-dialog" data-role="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="${headingId}-settings-title" hidden>
+                <section class="mcore-pg-settings-panel">
+                    <header class="mcore-pg-settings-header">
+                        <h2 id="${headingId}-settings-title">Pose Gallery settings</h2>
+                        <button class="mcore-pg-button" data-action="close-settings" type="button" aria-label="Close settings">×</button>
+                    </header>
+                    <div class="mcore-pg-settings-sections">
+                        <section class="mcore-pg-settings-section" data-settings-section="preview" aria-labelledby="${headingId}-preview-section-title">
+                            <h3 class="mcore-pg-settings-section-title" id="${headingId}-preview-section-title">Preview</h3>
+                            <label class="mcore-pg-settings-label" for="${headingId}-line-width">OpenPose line thickness</label>
+                            <div class="mcore-pg-preview-line-width-control">
+                                <span>${PREVIEW_LINE_WIDTH_MIN.toFixed(1)}×</span>
+                                <input id="${headingId}-line-width" data-role="preview-line-width" type="range" min="${Math.round(PREVIEW_LINE_WIDTH_MIN * 100)}" max="${Math.round(PREVIEW_LINE_WIDTH_MAX * 100)}" step="${Math.round(PREVIEW_LINE_WIDTH_STEP * 100)}" value="100" aria-describedby="${headingId}-line-width-help">
+                                <span>${PREVIEW_LINE_WIDTH_MAX.toFixed(1)}×</span>
+                                <output data-role="preview-line-width-value" for="${headingId}-line-width">1.0×</output>
+                            </div>
+                            <p class="mcore-pg-settings-help" id="${headingId}-line-width-help">1.0× uses the original line thickness. This setting affects only the gallery preview, not the OPENPOSE output.</p>
+                            <div class="mcore-pg-settings-section-footer">
+                                <button class="mcore-pg-button" data-action="reset-preview-settings" type="button">Reset preview settings</button>
+                            </div>
+                        </section>
+                    </div>
+                    <footer class="mcore-pg-settings-footer">
+                        <button class="mcore-pg-button" data-action="close-settings" type="button">Done</button>
+                    </footer>
+                </section>
             </div>
         </div>
     `;

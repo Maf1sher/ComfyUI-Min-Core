@@ -865,22 +865,37 @@ def convert_to_pose_keypoint(pose_json: str, show_body=True, show_face=True, sho
     }
 
 
-def render_pose_image(pose_json: str, show_body=True, show_face=True, show_hands=True, keypoint_radius: int = 4) -> np.ndarray:
+def render_pose_image(
+    pose_json: str,
+    show_body=True,
+    show_face=True,
+    show_hands=True,
+    keypoint_radius: int = 4,
+    line_width_scale: float = 1.0,
+) -> np.ndarray:
     """
     Render pose from JSON to image.
 
     Args:
         pose_json: JSON string with format:
             {"width": W, "height": H, "keypoints": [[[x1,y1], [x2,y2], ...], ...]}
+        line_width_scale: Optional line-width multiplier for gallery previews.
 
     Returns:
         RGB image as numpy array (H, W, 3) in 0-1 float range
     """
+    line_width_scale = float(line_width_scale)
+    if not math.isfinite(line_width_scale) or not 0.5 <= line_width_scale <= 2.5:
+        raise ValueError("OpenPose line width scale must be between 0.5 and 2.5.")
+
     normalized = _normalize_pose_json(pose_json)
     if not normalized:
         canvas = np.zeros((512, 512, 3), dtype=np.uint8)
         canvas_rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
         return canvas_rgb.astype(np.float32) / 255.0
+
+    def scaled_line_width(width):
+        return max(1, round(width * line_width_scale)) if width > 0 else 0
 
     width = normalized.get("width", 512)
     height = normalized.get("height", 512)
@@ -939,7 +954,7 @@ def render_pose_image(pose_json: str, show_body=True, show_face=True, show_hands
             limb_colors=limb_colors,
             keypoint_colors=keypoint_colors,
             keypoint_radius=body_style["keypoint_radius"],
-            line_width=body_style["line_width"],
+            line_width=scaled_line_width(body_style["line_width"]),
             keypoint_color=body_style["keypoint_color"],
         )
 
@@ -952,7 +967,7 @@ def render_pose_image(pose_json: str, show_body=True, show_face=True, show_hands
                         face_keypoints,
                         face_style["keypoint_radius"],
                         face_style["keypoint_color"],
-                        face_style["line_width"],
+                        scaled_line_width(face_style["line_width"]),
                     )
             if show_hands:
                 hand_left_keypoints = pose.get("hand_left_keypoints") if isinstance(pose, dict) else None
@@ -961,7 +976,7 @@ def render_pose_image(pose_json: str, show_body=True, show_face=True, show_hands
                     canvas = draw_hand_keypoints(
                         canvas,
                         hand_left_keypoints,
-                        hands_style["line_width"],
+                        scaled_line_width(hands_style["line_width"]),
                         hands_style["keypoint_color"],
                     )
                     canvas = draw_hand_joint_dots(
@@ -974,7 +989,7 @@ def render_pose_image(pose_json: str, show_body=True, show_face=True, show_hands
                     canvas = draw_hand_keypoints(
                         canvas,
                         hand_right_keypoints,
-                        hands_style["line_width"],
+                        scaled_line_width(hands_style["line_width"]),
                         hands_style["keypoint_color"],
                     )
                     canvas = draw_hand_joint_dots(

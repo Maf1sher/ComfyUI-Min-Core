@@ -19,6 +19,15 @@ export async function jsonRequest(path, options = {}) {
     return payload;
 }
 
+export async function blobRequest(path, options = {}) {
+    const response = await api.fetchApi(path, { cache: "no-store", ...options });
+    if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+    return response.blob();
+}
+
 export function toast(severity, summary, detail = "") {
     app.extensionManager?.toast?.add?.({ severity, summary, detail, life: 5000 });
 }
