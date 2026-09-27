@@ -7,6 +7,38 @@ import {
 
 export const GALLERY_VIEW_MODES = ["medium", "large", "tiles"];
 const GALLERY_VIEW_MODE_KEY = "openpose_editor.gallery.viewMode";
+const THUMBNAIL_LAYER_KEY = "mincore.poseGallery.thumbnailLayers";
+const THUMBNAIL_LAYERS = ["image", "pose", "masks"];
+
+export function getStoredThumbnailLayerVisibility() {
+    const defaults = { image: true, pose: true, masks: false };
+    try {
+        const stored = JSON.parse(localStorage.getItem(THUMBNAIL_LAYER_KEY) || "{}");
+        return Object.fromEntries(THUMBNAIL_LAYERS.map((layer) => [
+            layer,
+            typeof stored?.[layer] === "boolean" ? stored[layer] : defaults[layer],
+        ]));
+    } catch (_error) {
+        return defaults;
+    }
+}
+
+export function setThumbnailLayerVisibility(state, layer, visible) {
+    if (!THUMBNAIL_LAYERS.includes(layer)) return;
+    state.thumbnailLayerVisibility[layer] = Boolean(visible);
+    try {
+        localStorage.setItem(THUMBNAIL_LAYER_KEY, JSON.stringify(state.thumbnailLayerVisibility));
+    } catch (_error) {
+        // The setting still applies to the current gallery if storage is unavailable.
+    }
+    syncThumbnailLayerControls(state);
+}
+
+export function syncThumbnailLayerControls(state) {
+    state.root.querySelectorAll('[data-role="record-layer"]').forEach((input) => {
+        input.checked = Boolean(state.thumbnailLayerVisibility[input.dataset.layer]);
+    });
+}
 
 export function buildGalleryHtml(headingId) {
     return `
@@ -63,6 +95,12 @@ export function buildGalleryHtml(headingId) {
                                     </div>
                                     <span class="mcore-pg-gallery-stats-badge mcore-pg-gallery-header-ctrl" data-role="stats">0 records</span>
                                     <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-view" data-action="view-mode" type="button">View: medium</button>
+                                </div>
+                                <div class="mcore-pg-toolbar-group mcore-pg-record-layer-tools" role="group" aria-label="Layers shown on record cards">
+                                    <span class="mcore-pg-record-layer-heading">Card layers</span>
+                                    <label class="mcore-pg-layer-option"><input data-role="record-layer" data-layer="image" type="checkbox"><span>Image</span></label>
+                                    <label class="mcore-pg-layer-option"><input data-role="record-layer" data-layer="pose" type="checkbox"><span>Pose</span></label>
+                                    <label class="mcore-pg-layer-option"><input data-role="record-layer" data-layer="masks" type="checkbox"><span>Masks</span></label>
                                 </div>
                             </div>
                         </div>
@@ -154,7 +192,7 @@ export function setGalleryViewMode(state, mode) {
     if (button) button.textContent = `View: ${state.viewMode}`;
 }
 
-export function createThumbnailObserver(root) {
+export function createThumbnailObserver(state) {
     if (typeof IntersectionObserver === "undefined") return null;
     return new IntersectionObserver((entries, observer) => {
         for (const entry of entries) {
@@ -162,12 +200,17 @@ export function createThumbnailObserver(root) {
             observer.unobserve(entry.target);
             drawRecordThumbnail(
                 entry.target,
-                entry.target.dataset.recordId,
-                entry.target.dataset.hasImage !== "false",
+                {
+                    id: entry.target.dataset.recordId,
+                    has_image: entry.target.dataset.hasImage !== "false",
+                    mask_count: Number(entry.target.dataset.maskCount) || 0,
+                },
+                state.thumbnailLayerVisibility,
+                state.thumbnailImageCache,
             );
         }
     }, {
-        root: root.querySelector('[data-role="records"]'),
+        root: state.root.querySelector('[data-role="records"]'),
         rootMargin: "240px",
     });
 }
@@ -252,6 +295,7 @@ export function renderRecords(state, { onSelect, onRetry }) {
             canvas.height = 270;
             canvas.dataset.recordId = record.id;
             canvas.dataset.hasImage = String(record.has_image !== false);
+            canvas.dataset.maskCount = String(Number(record.mask_count) || 0);
             canvas.setAttribute("aria-hidden", "true");
 
             const imageFrame = document.createElement("div");
@@ -337,8 +381,13 @@ export function renderRecords(state, { onSelect, onRetry }) {
     } else {
         thumbnails.forEach((canvas) => drawRecordThumbnail(
             canvas,
-            canvas.dataset.recordId,
-            canvas.dataset.hasImage !== "false",
+            {
+                id: canvas.dataset.recordId,
+                has_image: canvas.dataset.hasImage !== "false",
+                mask_count: Number(canvas.dataset.maskCount) || 0,
+            },
+            state.thumbnailLayerVisibility,
+            state.thumbnailImageCache,
         ));
     }
 }

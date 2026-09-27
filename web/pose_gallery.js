@@ -10,10 +10,13 @@ import {
 import {
     buildGalleryHtml,
     createThumbnailObserver,
+    getStoredThumbnailLayerVisibility,
     getStoredViewMode,
     GALLERY_VIEW_MODES,
     renderRecords,
+    setThumbnailLayerVisibility,
     setGalleryViewMode,
+    syncThumbnailLayerControls,
 } from "./pose_gallery/view.js";
 
 const NODE_TYPE = "MinCore_PoseGallery";
@@ -205,6 +208,8 @@ function openGallery(node) {
         selectedRecord: null,
         selectedCollection: String(readWidget(node, "gallery_collection_id", "default")),
         viewMode: getStoredViewMode(),
+        thumbnailLayerVisibility: getStoredThumbnailLayerVisibility(),
+        thumbnailImageCache: new Map(),
         previewImages: [],
         previewLayers: [],
         previewLayerVisibility: {},
@@ -231,8 +236,9 @@ function openGallery(node) {
         closing: false,
     };
     node._poseGalleryPanel = state;
-    state.thumbnailObserver = createThumbnailObserver(root);
+    state.thumbnailObserver = createThumbnailObserver(state);
     setGalleryViewMode(state, state.viewMode);
+    syncThumbnailLayerControls(state);
     setPreviewLineWidth(state, state.previewLineWidth);
 
     const originalClose = panel.close.bind(panel);
@@ -242,6 +248,7 @@ function openGallery(node) {
         window.removeEventListener("resize", state.resizeHandler);
         window.removeEventListener("keydown", state.keydownHandler);
         state.thumbnailObserver?.disconnect();
+        state.thumbnailImageCache.clear();
         backdrop.remove();
         if (state.posePreviewTimer != null) window.clearTimeout(state.posePreviewTimer);
         state.previewLayers.forEach((layer) => {
@@ -331,6 +338,12 @@ function openGallery(node) {
         const index = GALLERY_VIEW_MODES.indexOf(state.viewMode);
         setGalleryViewMode(state, GALLERY_VIEW_MODES[(index + 1) % GALLERY_VIEW_MODES.length]);
         renderGalleryRecords(state);
+    });
+    root.querySelectorAll('[data-role="record-layer"]').forEach((input) => {
+        input.addEventListener("change", () => {
+            setThumbnailLayerVisibility(state, input.dataset.layer, input.checked);
+            renderGalleryRecords(state);
+        });
     });
     root.querySelector('[data-role="collection"]').addEventListener("change", (event) => {
         state.selectedCollection = event.target.value;

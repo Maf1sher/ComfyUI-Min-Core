@@ -167,50 +167,161 @@ export function displayUrl(urlOrItem) {
     return typeof urlOrItem === "string" ? api.apiURL(urlOrItem) : fileItemUrl(urlOrItem);
 }
 
-export function drawRecordThumbnail(canvas, recordId, hasImage = true) {
-    const image = new Image();
-    const drawUnavailable = () => {
-        const context = canvas.getContext("2d");
-        if (!context) return;
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        const color = getComputedStyle(canvas.closest(".mcore-pg-gallery") || canvas)
-            .getPropertyValue("--openpose-text-muted").trim() || "#999";
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        context.strokeStyle = color;
-        context.globalAlpha = 0.72;
-        context.lineWidth = 2;
-        context.strokeRect(centerX - 17, centerY - 23, 34, 34);
-        context.beginPath();
-        context.moveTo(centerX - 12, centerY + 5);
-        context.lineTo(centerX - 3, centerY - 4);
-        context.lineTo(centerX + 3, centerY + 2);
-        context.lineTo(centerX + 8, centerY - 3);
-        context.lineTo(centerX + 13, centerY + 4);
-        context.stroke();
-        context.globalAlpha = 1;
-        context.fillStyle = color;
+function loadThumbnailImage(url, cache) {
+    if (cache.has(url)) return cache.get(url);
+    const promise = new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => resolve(image.naturalWidth && image.naturalHeight ? image : null);
+        image.onerror = () => resolve(null);
+        image.src = api.apiURL(url);
+    });
+    cache.set(url, promise);
+    return promise;
+}
+
+function drawUnavailableThumbnail(canvas, context) {
+    const color = getComputedStyle(canvas.closest(".mcore-pg-gallery") || canvas)
+        .getPropertyValue("--openpose-text-muted").trim() || "#999";
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    context.strokeStyle = color;
+    context.globalAlpha = 0.72;
+    context.lineWidth = 2;
+    context.strokeRect(centerX - 17, centerY - 23, 34, 34);
+    context.beginPath();
+    context.moveTo(centerX - 12, centerY + 5);
+    context.lineTo(centerX - 3, centerY - 4);
+    context.lineTo(centerX + 3, centerY + 2);
+    context.lineTo(centerX + 8, centerY - 3);
+    context.lineTo(centerX + 13, centerY + 4);
+    context.stroke();
+    context.globalAlpha = 1;
+    context.fillStyle = color;
+    context.font = "500 12px Inter, Segoe UI, Arial, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "top";
+    context.fillText("Preview unavailable", centerX, centerY + 23, canvas.width - 20);
+}
+
+function thumbnailLayerRect(canvas, image) {
+    const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    return { x: (canvas.width - width) / 2, y: (canvas.height - height) / 2, width, height };
+}
+
+function drawPoseThumbnail(context, scratch, image, rect) {
+    const scratchContext = scratch.getContext("2d", { willReadFrequently: true });
+    if (!scratchContext) return;
+    scratchContext.clearRect(0, 0, scratch.width, scratch.height);
+    scratchContext.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+    const pixels = scratchContext.getImageData(0, 0, scratch.width, scratch.height);
+    for (let pixel = 0; pixel < pixels.data.length; pixel += 4) {
+        const intensity = Math.max(pixels.data[pixel], pixels.data[pixel + 1], pixels.data[pixel + 2]);
+        if (!intensity) {
+            pixels.data[pixel + 3] = 0;
+            continue;
+        }
+        const colorScale = 255 / intensity;
+        pixels.data[pixel] = Math.round(pixels.data[pixel] * colorScale);
+        pixels.data[pixel + 1] = Math.round(pixels.data[pixel + 1] * colorScale);
+        pixels.data[pixel + 2] = Math.round(pixels.data[pixel + 2] * colorScale);
+        pixels.data[pixel + 3] = Math.min(255, Math.round(intensity / 0.6));
+    }
+    scratchContext.putImageData(pixels, 0, 0);
+    context.drawImage(scratch, 0, 0);
+}
+
+function drawMaskThumbnail(context, scratch, image, rect, color) {
+    const scratchContext = scratch.getContext("2d", { willReadFrequently: true });
+    if (!scratchContext) return;
+    scratchContext.clearRect(0, 0, scratch.width, scratch.height);
+    scratchContext.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+    const pixels = scratchContext.getImageData(0, 0, scratch.width, scratch.height);
+    for (let pixel = 0; pixel < pixels.data.length; pixel += 4) {
+        const intensity = pixels.data[pixel];
+        pixels.data[pixel] = color[0];
+        pixels.data[pixel + 1] = color[1];
+        pixels.data[pixel + 2] = color[2];
+        pixels.data[pixel + 3] = Math.round(intensity * 0.52);
+    }
+    scratchContext.putImageData(pixels, 0, 0);
+    context.drawImage(scratch, 0, 0);
+}
+
+export function drawRecordThumbnail(canvas, record, visibility, cache) {
+    const requestId = (canvas.thumbnailRequestId || 0) + 1;
+    canvas.thumbnailRequestId = requestId;
+    const recordId = encodeURIComponent(record.id);
+    const assetUrl = (filename) => `/mincore/pose_gallery/records/${recordId}/assets/${filename}`;
+    const layers = [];
+    if (record.has_image && (visibility.image || visibility.pose || visibility.masks)) {
+        layers.push({
+            type: "image",
+            visible: visibility.image,
+            url: assetUrl("image.png"),
+        });
+    }
+    if (visibility.pose) layers.push({ type: "pose", url: assetUrl("pose.png") });
+    if (visibility.masks) {
+        for (let index = 0; index < record.mask_count; index += 1) {
+            layers.push({
+                type: "mask",
+                color: MASK_COLORS[index % MASK_COLORS.length],
+                url: assetUrl(`mask_${String(index).padStart(4, "0")}.png`),
+            });
+        }
+    }
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const gallery = canvas.closest(".mcore-pg-gallery");
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = getComputedStyle(gallery || canvas).getPropertyValue("--mcore-pg-canvas-bg").trim() || "#222";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (!layers.length) {
+        context.fillStyle = getComputedStyle(gallery || canvas).getPropertyValue("--openpose-text-muted").trim() || "#999";
         context.font = "500 12px Inter, Segoe UI, Arial, sans-serif";
         context.textAlign = "center";
-        context.textBaseline = "top";
-        context.fillText("Preview unavailable", centerX, centerY + 23, canvas.width - 20);
-    };
-    image.onload = () => {
-        const context = canvas.getContext("2d");
-        if (!context) return;
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        if (!image.naturalWidth || !image.naturalHeight) {
-            drawUnavailable();
-            return;
-        }
-        const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
-        const width = image.naturalWidth * scale;
-        const height = image.naturalHeight * scale;
-        context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
-    };
-    image.onerror = drawUnavailable;
-    const previewFilename = hasImage ? "image.png" : "pose.png";
-    image.src = api.apiURL(`/mincore/pose_gallery/records/${recordId}/assets/${previewFilename}`);
+        context.textBaseline = "middle";
+        context.fillText("No layers selected", canvas.width / 2, canvas.height / 2, canvas.width - 20);
+        return;
+    }
+
+    Promise.all(layers.map(async (layer) => ({ ...layer, image: await loadThumbnailImage(layer.url, cache) })))
+        .then((loadedLayers) => {
+            if (canvas.thumbnailRequestId !== requestId || !canvas.isConnected) return;
+            const available = loadedLayers.filter((layer) => layer.image);
+            if (!available.length) {
+                drawUnavailableThumbnail(canvas, context);
+                return;
+            }
+            const reference = available.find((layer) => layer.type === "image")
+                || available.find((layer) => layer.type === "pose")
+                || available[0];
+            const rect = thumbnailLayerRect(canvas, reference.image);
+            const scratch = document.createElement("canvas");
+            scratch.width = canvas.width;
+            scratch.height = canvas.height;
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = "high";
+
+            for (const layer of available) {
+                if (layer.type === "image") {
+                    if (layer.visible) context.drawImage(layer.image, rect.x, rect.y, rect.width, rect.height);
+                } else if (layer.type === "pose") {
+                    drawPoseThumbnail(context, scratch, layer.image, rect);
+                } else {
+                    drawMaskThumbnail(context, scratch, layer.image, rect, layer.color);
+                }
+            }
+        })
+        .catch(() => {
+            if (canvas.thumbnailRequestId === requestId && canvas.isConnected) {
+                drawUnavailableThumbnail(canvas, context);
+            }
+        });
 }
 
 function isFiniteCoordinate(value) {

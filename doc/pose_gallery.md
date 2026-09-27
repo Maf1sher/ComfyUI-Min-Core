@@ -73,7 +73,10 @@ other record details. The record details also show the source image resolution
 in width × height pixels. Missing detail values are shown as a hyphen (-).
 
 Saved records are shown as image cards with their name, save date, mask count,
-and tags. The gallery offers medium, large, and compact tile layouts; selecting a
+and tags. Use the **Card layers** controls to show or hide image, pose, and mask
+layers on every list thumbnail; image and pose are enabled by default, and masks
+are hidden. These preferences are saved locally and do not affect the detail
+preview. The gallery offers medium, large, and compact tile layouts; selecting a
 card opens its layered preview and record details in the side panel. The gallery
 follows the active ComfyUI color theme. When a collection has fewer records than
 fit across the gallery, its cards expand to use the available width.
