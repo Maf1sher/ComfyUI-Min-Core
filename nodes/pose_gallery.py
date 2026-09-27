@@ -460,11 +460,11 @@ class MinCore_PoseGallery(io.ComfyNode):
             search_aliases=["pose gallery", "image pose collection", "pose dataset"],
             inputs=[
                 io.Image.Input("image", optional=True, lazy=True, tooltip="Source image."),
-                io.String.Input("pose_json", default="", optional=True, lazy=True, multiline=True,
+                io.String.Input("pose_json", default="", optional=True, lazy=True, force_input=True,
                                 tooltip="Pose JSON. The OpenPose preview is generated from this value."),
                 io.Autogrow.Input("masks", template=mask_template, optional=True,
                                   tooltip="One optional MASK input per person/layer."),
-                io.String.Input("general_tags", default="", optional=True, lazy=True, multiline=True,
+                io.String.Input("general_tags", default="", optional=True, lazy=True, force_input=True,
                                 tooltip="Tags describing the complete image/pose record."),
                 io.Autogrow.Input("person_tags", template=person_tag_template, optional=True,
                                   tooltip="Dynamic tags for each person, in pose JSON order."),

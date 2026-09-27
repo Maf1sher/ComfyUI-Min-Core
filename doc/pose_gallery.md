@@ -15,11 +15,11 @@ the machine where they are opened.
 ## Inputs
 
 - **image** (IMAGE) — source image.
-- **pose_json** (STRING) — pose data. The OpenPose image is generated from this
-  JSON using the OpenPose Studio renderer; there is no separate pose-image
-  input to become inconsistent with the JSON.
+- **pose_json** (STRING socket) — optional pose data. The OpenPose image is
+  generated from this JSON using the OpenPose Studio renderer; there is no
+  separate pose-image input to become inconsistent with the JSON.
 - **masks** — dynamic `MASK` inputs (`mask_0`, `mask_1`, …).
-- **general_tags** (STRING) — tags for the full record.
+- **general_tags** (STRING socket) — optional tags for the full record.
 - **person_tags** — dynamic STRING inputs (`person_tag_0`, `person_tag_1`, …),
   ordered to correspond to people in the pose JSON.
 - **output_source** — `inputs` (default) to use connected values, or `gallery`
