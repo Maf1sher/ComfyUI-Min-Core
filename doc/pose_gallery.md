@@ -31,13 +31,15 @@ Inputs are evaluated lazily. In gallery mode the node can load a selected
 record without running its upstream inputs. The gallery's **Save current
 inputs** button opens an in-gallery dialog for an optional record name, then
 queues the node to capture connected data in the selected collection. Leave the
-name blank to use an automatic name.
+name blank to use an automatic name. Saving a record requires a valid **image**;
+the other inputs may be omitted.
 
 Use **Show current inputs** in the side panel to run the connected inputs and
-preview their image, pose, masks, and tags without saving a record or changing
-the selected gallery output. When the latest node output already uses inputs,
-the button reads **Refresh current inputs**. Both paths display the same details;
-**Show node output** returns to the current output preview.
+preview available layers (the image if connected, pose, and masks) and tags
+without saving a record or changing the selected gallery output. When the latest
+node output already uses inputs, the button reads **Refresh current inputs**.
+Both paths display the same details. **Show node output** returns to the current
+output preview.
 
 ## Gallery preview
 
@@ -78,6 +80,18 @@ to its connected inputs.
 - **MASKS** — list output containing each mask in input order.
 - **GENERAL_TAGS** — general tags.
 - **PERSON_TAGS** — list output of per-person tags in person order.
+
+In `inputs` mode, missing values do not prevent the other outputs from being
+returned. If no image is connected, `IMAGE` is a black placeholder matching the
+rendered pose size (512 × 512 when the pose is empty). If no masks are available,
+`MASKS` contains one zero-valued placeholder mask matching the output image size;
+this also applies to gallery records without masks. If there are no person tags,
+`PERSON_TAGS` contains one empty string; configured blank slots remain empty
+strings to preserve person order. `POSE_JSON` and `GENERAL_TAGS` are empty
+strings when omitted, and `OPENPOSE` is still rendered from `pose_json`. These
+placeholders keep downstream IMAGE and MASK inputs type-valid, but they are
+synthetic values and may affect downstream results. Saving a record still
+requires an actual connected image. In `gallery` mode, a record must be selected.
 
 ComfyUI's current node API does not provide dynamic output sockets. Masks and
 per-person tags therefore use one list-valued output socket each, not one

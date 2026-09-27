@@ -121,6 +121,10 @@ def _as_float_array(value: torch.Tensor) -> np.ndarray:
     return value.detach().to(device="cpu", dtype=torch.float32).numpy().copy()
 
 
+def _is_valid_image(image: torch.Tensor | None) -> bool:
+    return torch.is_tensor(image) and image.ndim == 4 and image.shape[-1] >= 3
+
+
 def _ordered_values(values, prefix: str, include_empty: bool = True) -> list:
     if not isinstance(values, dict):
         return []
@@ -162,7 +166,7 @@ def _save_record(
     collection = _find_collection(collection_id)
     if collection is None:
         raise ValueError("Unknown gallery collection")
-    if not torch.is_tensor(image) or image.ndim != 4 or image.shape[-1] < 3:
+    if not _is_valid_image(image):
         raise ValueError("Pose Gallery: connect a valid IMAGE before saving.")
 
     record_id = uuid.uuid4().hex
@@ -226,7 +230,7 @@ def _load_record(record_id: str) -> tuple[dict, torch.Tensor, list[torch.Tensor]
 
 def _save_temp_preview(
     node_id: str,
-    image: torch.Tensor,
+    image: torch.Tensor | None,
     pose_image: torch.Tensor,
     masks: list[torch.Tensor],
     scope: str = "output",
@@ -255,7 +259,7 @@ def _save_temp_preview(
         return {"filename": filename, "subfolder": subfolder, "type": "temp"}
 
     return {
-        "image": save_tensor(image, "image.png"),
+        "image": save_tensor(image, "image.png") if image is not None else None,
         "pose": save_tensor(pose_image, "pose.png"),
         "masks": [save_tensor(mask, f"mask_{index:04d}.png", mask=True) for index, mask in enumerate(masks)],
     }
@@ -276,12 +280,14 @@ class _PoseGalleryUI(_UIOutput):
         self.current_inputs = current_inputs
 
     def as_dict(self) -> dict:
-        return {
-            "images": [self.preview["image"]],
+        result = {
             "pose_gallery_state": [self.state],
             "pose_gallery_capture": [self.capture] if self.capture else [],
             "pose_gallery_current_inputs": [self.current_inputs] if self.current_inputs else [],
         }
+        if self.preview.get("image") is not None:
+            result["images"] = [self.preview["image"]]
+        return result
 
 
 routes = PromptServer.instance.routes
@@ -515,12 +521,23 @@ class MinCore_PoseGallery(io.ComfyNode):
                 io.String.Input("gallery_record_id", default="", socketless=True),
             ],
             outputs=[
-                io.Image.Output("IMAGE", tooltip="Original image."),
+                io.Image.Output(
+                    "IMAGE",
+                    tooltip="Original image, or a black placeholder when no image is connected.",
+                ),
                 io.Image.Output("OPENPOSE", tooltip="OpenPose image rendered from pose_json."),
                 io.String.Output("POSE_JSON", tooltip="Pose JSON."),
-                io.Mask.Output("MASKS", tooltip="Dynamic masks returned as one ComfyUI list output.", is_output_list=True),
+                io.Mask.Output(
+                    "MASKS",
+                    tooltip="Masks as a list, or one zero-valued placeholder mask when none are available.",
+                    is_output_list=True,
+                ),
                 io.String.Output("GENERAL_TAGS", tooltip="General tags."),
-                io.String.Output("PERSON_TAGS", tooltip="Per-person tags, ordered by person index.", is_output_list=True),
+                io.String.Output(
+                    "PERSON_TAGS",
+                    tooltip="Per-person tags, or one empty placeholder when none are configured.",
+                    is_output_list=True,
+                ),
             ],
             hidden=[io.Hidden.unique_id],
         )
@@ -598,8 +615,6 @@ class MinCore_PoseGallery(io.ComfyNode):
             general_tags = str(manifest.get("general_tags", ""))
             person_tags_out = [str(tag) for tag in manifest.get("person_tags", [])]
         else:
-            if image is None:
-                raise RuntimeError("Pose Gallery: connect an IMAGE or select a gallery record.")
             if not isinstance(pose_json, str):
                 pose_json = str(pose_json or "")
             general_tags = general_tags if isinstance(general_tags, str) else str(general_tags or "")
@@ -612,6 +627,23 @@ class MinCore_PoseGallery(io.ComfyNode):
             ]
 
         pose_image = torch.from_numpy(render_pose_image(pose_json)).unsqueeze(0)
+        # Optional inputs still need consumable values on typed output sockets.
+        if image is None:
+            image_output = torch.zeros_like(pose_image)
+        elif _is_valid_image(image):
+            image_output = image
+        else:
+            raise RuntimeError("Pose Gallery: IMAGE input must be a valid IMAGE tensor.")
+        if masks_out:
+            masks_output = masks_out
+        else:
+            # Match the fallback mask to IMAGE's batch and spatial dimensions.
+            masks_output = [
+                image_output.new_zeros(
+                    (image_output.shape[0], image_output.shape[1], image_output.shape[2])
+                )
+            ]
+        person_tags_output = person_tags_out if person_tags_out else [""]
 
         saved_record = None
         current_inputs_preview = None
@@ -636,7 +668,7 @@ class MinCore_PoseGallery(io.ComfyNode):
                 "collection_id": saved_record["collection_id"],
             }
         elif capture_request is not None and capture_request["action"] == "preview":
-            if not torch.is_tensor(input_image) or input_image.ndim != 4 or input_image.shape[-1] < 3:
+            if input_image is not None and not _is_valid_image(input_image):
                 raise RuntimeError("Pose Gallery: connect a valid IMAGE to preview current inputs.")
             current_pose_json = input_pose_json if isinstance(input_pose_json, str) else str(input_pose_json or "")
             current_masks = [
@@ -662,7 +694,7 @@ class MinCore_PoseGallery(io.ComfyNode):
                 "pose_json": current_pose_json,
                 "general_tags": current_general_tags,
                 "person_tags": current_person_tags,
-                "image_shape": list(input_image.shape),
+                "image_shape": list(input_image.shape) if input_image is not None else [],
                 "mask_count": len(current_masks),
             }
 
@@ -676,15 +708,15 @@ class MinCore_PoseGallery(io.ComfyNode):
             "pose_json": pose_json,
             "general_tags": general_tags,
             "person_tags": person_tags_out,
-            "image_shape": list(image.shape),
+            "image_shape": list(image.shape) if torch.is_tensor(image) else [],
             "mask_count": len(masks_out),
         }
         return io.NodeOutput(
-            image,
+            image_output,
             pose_image,
             pose_json,
-            masks_out,
+            masks_output,
             general_tags,
-            person_tags_out,
+            person_tags_output,
             ui=_PoseGalleryUI(preview, state, saved_record, current_inputs_preview),
         )
