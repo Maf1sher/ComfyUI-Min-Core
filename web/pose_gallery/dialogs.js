@@ -74,6 +74,33 @@ export function closeDeleteConfirmation(state, restoreFocus = true) {
     if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
+/** @param {GalleryPanelState} state @param {{ id: string, name: string } | null} collection */
+export function openDeleteCollectionConfirmation(state, collection) {
+    const dialog = state.root.querySelector('[data-role="delete-collection-confirmation"]');
+    if (!collection || collection.id === "default" || !dialog || state.deleteCollectionConfirmOpen) return;
+    state.pendingDeleteCollection = collection;
+    state.deleteCollectionConfirmReturnFocus = document.activeElement;
+    state.root.querySelector('[data-role="delete-collection-name"]').textContent = collection.name;
+    const count = state.records.length;
+    state.root.querySelector('[data-role="delete-collection-count"]').textContent =
+        `${count} saved record${count === 1 ? "" : "s"}`;
+    state.deleteCollectionConfirmOpen = true;
+    dialog.hidden = false;
+    dialog.querySelector('[data-action="cancel-delete-collection"]').focus({ preventScroll: true });
+}
+
+/** @param {GalleryPanelState} state */
+export function closeDeleteCollectionConfirmation(state, restoreFocus = true) {
+    const dialog = state.root.querySelector('[data-role="delete-collection-confirmation"]');
+    if (!dialog || !state.deleteCollectionConfirmOpen) return;
+    state.deleteCollectionConfirmOpen = false;
+    dialog.hidden = true;
+    state.pendingDeleteCollection = null;
+    const returnFocus = state.deleteCollectionConfirmReturnFocus;
+    state.deleteCollectionConfirmReturnFocus = null;
+    if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+}
+
 /** @param {GalleryPanelState} state */
 export function openSaveDialog(state) {
     const dialog = state.root.querySelector('[data-role="save-dialog"]');

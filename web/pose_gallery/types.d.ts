@@ -40,6 +40,7 @@ export interface GalleryPanelState {
     selectionPending: boolean;
     selectionTargetRecordId: string | null;
     deletingRecordId: string | null;
+    deletingCollectionId: string | null;
     usingRecord: boolean;
     retryCollections: boolean;
     selectedRecord: GalleryRecord | null;
@@ -62,6 +63,9 @@ export interface GalleryPanelState {
     deleteConfirmOpen: boolean;
     deleteConfirmReturnFocus: any;
     pendingDeleteRecord: GalleryRecord | null;
+    deleteCollectionConfirmOpen: boolean;
+    deleteCollectionConfirmReturnFocus: any;
+    pendingDeleteCollection: GalleryCollection | null;
     newCollectionDialogOpen: boolean;
     newCollectionDialogReturnFocus: any;
     saveDialogOpen: boolean;
@@ -83,9 +87,11 @@ export interface GalleryPanelActions {
     useSelectedRecord(state: GalleryPanelState): Promise<void>;
     toggleCurrentInputs(state: GalleryPanelState): Promise<void>;
     deleteSelectedRecord(state: GalleryPanelState, record: GalleryRecord): Promise<void>;
+    deleteCollection(state: GalleryPanelState, collection: GalleryCollection): Promise<void>;
     showCurrentState(state: GalleryPanelState, preview: Record<string, any>): void;
     loadRecords(state: GalleryPanelState): Promise<boolean>;
     createCollection(state: GalleryPanelState, name: string): Promise<void>;
     saveCurrent(state: GalleryPanelState, name: string): Promise<void>;
     setWidget(node: any, name: string, value: unknown): void;
+    updateCollectionActions(state: GalleryPanelState): void;
 }

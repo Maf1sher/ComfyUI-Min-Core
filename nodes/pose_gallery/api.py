@@ -120,6 +120,31 @@ async def _create_collection(request: web.Request) -> web.Response:
     return web.json_response(collection)
 
 
+@routes.delete("/mincore/pose_gallery/collections/{collection_id}")
+async def _delete_collection(request: web.Request) -> web.Response:
+    collection_id = request.match_info.get("collection_id", "")
+    try:
+        deleted = gallery_store.delete_collection(collection_id)
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Could not read the gallery collection index"}, status=500)
+    except ValueError as error:
+        return web.json_response({"error": str(error)}, status=400)
+    except OSError:
+        return web.json_response({"error": "Could not delete the gallery collection"}, status=500)
+    if deleted is None:
+        return web.json_response({"error": "Collection not found"}, status=404)
+
+    collection, record_ids = deleted
+    active_record_id = request.rel_url.query.get("record_id", "")
+    return web.json_response({
+        "ok": True,
+        "id": collection_id,
+        "name": collection["name"],
+        "deleted_records": len(record_ids),
+        "active_record_deleted": active_record_id in record_ids,
+    })
+
+
 @routes.get("/mincore/pose_gallery/records")
 async def _get_records(request: web.Request) -> web.Response:
     collection_id = request.rel_url.query.get("collection_id", "default")

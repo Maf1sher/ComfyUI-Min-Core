@@ -21,6 +21,7 @@ __all__ = [
     "RecordManifest",
     "RecordSummary",
     "collections_path",
+    "delete_collection",
     "ensure_record_thumbnail",
     "find_collection",
     "is_valid_image",
@@ -139,6 +140,63 @@ def find_collection(collection_id: str) -> Collection | None:
     if not isinstance(collection_id, str) or not _COLLECTION_ID.fullmatch(collection_id):
         return None
     return next((item for item in read_collections() if isinstance(item, dict) and item.get("id") == collection_id), None)
+
+
+def delete_collection(collection_id: str) -> tuple[Collection, list[str]] | None:
+    if not isinstance(collection_id, str) or not _COLLECTION_ID.fullmatch(collection_id):
+        raise ValueError("Invalid gallery collection ID")
+    if collection_id == "default":
+        raise ValueError("The Default collection cannot be deleted")
+
+    collections = read_collections()
+    collection = next((item for item in collections if item["id"] == collection_id), None)
+    if collection is None:
+        return None
+
+    record_ids = []
+    if os.path.isdir(_entries_root()):
+        for entry in os.scandir(_entries_root()):
+            if not entry.is_dir() or not _RECORD_ID.fullmatch(entry.name):
+                continue
+            try:
+                manifest = read_manifest(entry.name)
+            except (OSError, ValueError):
+                continue
+            if manifest is not None and manifest.get("collection_id") == collection_id:
+                record_ids.append(entry.name)
+
+    staging_directory = None
+    moved_record_ids = []
+    if record_ids:
+        os.makedirs(_entries_root(), exist_ok=True)
+        staging_directory = os.path.join(_entries_root(), f".delete-{uuid.uuid4().hex}")
+        os.mkdir(staging_directory)
+
+    try:
+        for record_id in record_ids:
+            os.replace(record_dir(record_id), os.path.join(staging_directory, record_id))
+            moved_record_ids.append(record_id)
+
+        remaining = [item for item in collections if item["id"] != collection_id]
+        write_json(collections_path(), {"collections": remaining})
+    except Exception:
+        if staging_directory is not None:
+            rollback_complete = True
+            for record_id in reversed(moved_record_ids):
+                try:
+                    os.replace(
+                        os.path.join(staging_directory, record_id),
+                        record_dir(record_id),
+                    )
+                except OSError:
+                    rollback_complete = False
+            if rollback_complete:
+                shutil.rmtree(staging_directory, ignore_errors=True)
+        raise
+
+    if staging_directory is not None:
+        shutil.rmtree(staging_directory, ignore_errors=True)
+    return collection, record_ids
 
 
 def record_dir(record_id: str) -> str:

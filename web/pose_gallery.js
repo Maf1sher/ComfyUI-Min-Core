@@ -90,6 +90,7 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         selectionPending: false,
         selectionTargetRecordId: null,
         deletingRecordId: null,
+        deletingCollectionId: null,
         usingRecord: false,
         retryCollections: false,
         selectedRecord: null,
@@ -111,6 +112,9 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         deleteConfirmOpen: false,
         deleteConfirmReturnFocus: null,
         pendingDeleteRecord: null,
+        deleteCollectionConfirmOpen: false,
+        deleteCollectionConfirmReturnFocus: null,
+        pendingDeleteCollection: null,
         newCollectionDialogOpen: false,
         newCollectionDialogReturnFocus: null,
         saveDialogOpen: false,
@@ -213,9 +217,11 @@ function openGallery(node) {
         useSelectedRecord,
         toggleCurrentInputs,
         deleteSelectedRecord,
+        deleteCollection,
         showCurrentState,
         loadRecords,
         createCollection,
+        updateCollectionActions,
         saveCurrent,
         setWidget,
     });
@@ -239,6 +245,7 @@ async function refreshCollections(state) {
     state.records = [];
     state.recordsError = null;
     state.recordsStatus = "loading";
+    updateCollectionActions(state);
     renderGalleryRecords(state);
     let payload;
     try {
@@ -247,6 +254,7 @@ async function refreshCollections(state) {
         if (requestId === state.collectionsRequestId && !state.closing) {
             state.recordsError = String(error);
             state.recordsStatus = "error";
+            updateCollectionActions(state);
             renderGalleryRecords(state);
         }
         throw error;
@@ -302,6 +310,7 @@ async function loadRecords(state) {
     state.records = [];
     state.recordsError = null;
     state.recordsStatus = "loading";
+    updateCollectionActions(state);
     renderGalleryRecords(state);
     try {
         const query = new URLSearchParams({ collection_id: collectionId });
@@ -309,12 +318,14 @@ async function loadRecords(state) {
         if (requestId !== state.recordsRequestId || collectionId !== state.selectedCollection || state.closing) return false;
         state.records = payload.records || [];
         state.recordsStatus = "ready";
+        updateCollectionActions(state);
         renderGalleryRecords(state);
         return true;
     } catch (error) {
         if (requestId !== state.recordsRequestId || collectionId !== state.selectedCollection || state.closing) return false;
         state.recordsError = String(error);
         state.recordsStatus = "error";
+        updateCollectionActions(state);
         renderGalleryRecords(state);
         toast("error", "Pose Gallery", String(error));
         return false;
@@ -356,6 +367,25 @@ function updateRecordActions(state) {
         || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     state.root.querySelector('[data-action="use-record"]').disabled = !state.selectedRecord || busy;
     state.root.querySelector('[data-action="delete-record"]').disabled = !state.selectedRecord || busy;
+    updateCollectionActions(state);
+}
+
+/** @param {GalleryPanelState} state */
+function updateCollectionActions(state) {
+    const button = state.root.querySelector('[data-action="delete-collection"]');
+    const busy = state.deletingCollectionId != null || state.deletingRecordId != null || state.usingRecord
+        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    button.disabled = state.selectedCollection === "default"
+        || state.recordsStatus !== "ready"
+        || Boolean(state.recordsError)
+        || busy;
+    state.root.querySelector('[data-role="collection"]').disabled = state.deletingCollectionId != null;
+    state.root.querySelector('[data-action="new-collection"]').disabled = state.deletingCollectionId != null;
+    const saveButton = state.root.querySelector('[data-action="save-current"]');
+    if (saveButton) {
+        saveButton.disabled = state.deletingCollectionId != null
+            || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    }
 }
 
 /** @param {GalleryPanelState} state @param {GalleryRecord} record */
@@ -400,6 +430,62 @@ async function deleteSelectedRecord(state, record) {
         toast("error", "Pose Gallery", String(error));
     } finally {
         if (state.deletingRecordId === recordId) state.deletingRecordId = null;
+        updateRecordActions(state);
+    }
+}
+
+/** @param {GalleryPanelState} state @param {import("./pose_gallery/types.js").GalleryCollection} collection */
+async function deleteCollection(state, collection) {
+    if (!collection || collection.id === "default" || state.selectedCollection !== collection.id
+        || state.deletingCollectionId != null || state.recordsStatus !== "ready") return;
+
+    const collectionId = String(collection.id);
+    const nodeState = state.node._poseGalleryState;
+    const activeRecordId = String(
+        readWidget(state.node, "gallery_record_id") || nodeState?.record_id || "",
+    );
+    const query = new URLSearchParams();
+    if (activeRecordId) query.set("record_id", activeRecordId);
+
+    state.deletingCollectionId = collectionId;
+    updateRecordActions(state);
+    try {
+        const queryString = query.toString();
+        const suffix = queryString ? `?${queryString}` : "";
+        const result = await jsonRequest(
+            `/mincore/pose_gallery/collections/${encodeURIComponent(collectionId)}${suffix}`,
+            { method: "DELETE" },
+        );
+        if (state.closing) return;
+
+        if (result.active_record_deleted) {
+            state.node._poseGalleryState = { ...(nodeState || {}), source: "inputs", record_id: "" };
+            setWidget(state.node, "gallery_record_id", "");
+            if (readWidget(state.node, "output_source") === "gallery") {
+                setWidget(state.node, "output_source", "inputs");
+            }
+        }
+
+        state.selectedCollection = "default";
+        state.collections = state.collections.filter((item) => item.id !== collectionId);
+        const collectionSelect = state.root.querySelector('[data-role="collection"]');
+        Array.from(collectionSelect.options).find((option) => option.value === collectionId)?.remove();
+        collectionSelect.value = "default";
+        setWidget(state.node, "gallery_collection_id", "default");
+        state.selectionRequestId += 1;
+        showCurrentState(state, result.active_record_deleted ? state.node._poseGalleryState : {});
+
+        try {
+            await refreshCollections(state);
+        } catch (error) {
+            toast("error", "Pose Gallery", `Collection deleted, but the collection list could not be refreshed: ${String(error)}`);
+        }
+        const count = Number(result.deleted_records) || 0;
+        toast("success", "Pose Gallery", `Deleted collection: ${collection.name} (${count} record${count === 1 ? "" : "s"} removed)`);
+    } catch (error) {
+        toast("error", "Pose Gallery", String(error));
+    } finally {
+        if (state.deletingCollectionId === collectionId) state.deletingCollectionId = null;
         updateRecordActions(state);
     }
 }

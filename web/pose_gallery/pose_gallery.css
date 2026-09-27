@@ -1121,12 +1121,14 @@
 }
 
 .mcore-pg-gallery .mcore-pg-delete-record,
+.mcore-pg-gallery .mcore-pg-delete-collection,
 .mcore-pg-gallery .mcore-pg-delete-confirm-button {
     border-color: color-mix(in srgb, #e5484d 55%, var(--mcore-pg-border));
     color: var(--error-text, #ff8585);
 }
 
 .mcore-pg-gallery .mcore-pg-delete-record:hover:not(:disabled),
+.mcore-pg-gallery .mcore-pg-delete-collection:hover:not(:disabled),
 .mcore-pg-gallery .mcore-pg-delete-confirm-button:hover:not(:disabled) {
     border-color: #e5484d;
     background: color-mix(in srgb, #e5484d 16%, var(--mcore-pg-button-hover-bg));
@@ -1271,7 +1273,7 @@
     }
 
     .mcore-pg-gallery .mcore-pg-library-tools {
-        grid-template-columns: minmax(140px, 1fr) auto auto;
+        grid-template-columns: minmax(140px, 1fr) repeat(3, auto);
     }
 
     .mcore-pg-gallery .mcore-pg-browse-tools {

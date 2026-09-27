@@ -6,7 +6,9 @@ Pose Gallery Min stores pose records locally: an optional source image, pose
 JSON, any number of masks, general tags, and tags for each person. Open the
 gallery from the node button or its context menu. It starts with an empty
 `Default` collection; additional collections can be created with an in-gallery
-dialog.
+dialog. Non-default collections can also be deleted; deleting one permanently
+deletes all records and files stored in that collection after confirmation.
+The `Default` collection cannot be deleted.
 The node's **Open Pose Gallery** button stays compact and centered, regardless
 of the node's image preview size.
 
@@ -133,3 +135,6 @@ Each saved record contains the original tensor data in a NumPy archive, plus
 PNG previews for browsing. Small card thumbnails are generated on demand and
 stored alongside those previews. Pose images are regenerated from the stored
 JSON on execution. Records are written to the collection selected in the gallery.
+Use **Delete collection** to permanently remove a non-default collection and all
+of its saved records; the confirmation shows how many records will be deleted.
+The `Default` collection is protected from deletion.

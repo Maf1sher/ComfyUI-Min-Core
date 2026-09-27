@@ -1,10 +1,12 @@
 import {
     closeDeleteConfirmation,
+    closeDeleteCollectionConfirmation,
     closeNewCollectionDialog,
     closePreviewLightbox,
     closeSaveDialog,
     closeSettings,
     openDeleteConfirmation,
+    openDeleteCollectionConfirmation,
     openNewCollectionDialog,
     openPreviewLightbox,
     openSaveDialog,
@@ -44,9 +46,11 @@ export function bindPanelEvents(state, actions) {
         useSelectedRecord,
         toggleCurrentInputs,
         deleteSelectedRecord,
+        deleteCollection,
         showCurrentState,
         loadRecords,
         createCollection,
+        updateCollectionActions,
         saveCurrent,
         setWidget,
     } = actions;
@@ -65,6 +69,11 @@ export function bindPanelEvents(state, actions) {
         if (!state.selectionPending && state.deletingRecordId == null && !state.loadingCurrentInputs && !state.saveQueued) {
             openDeleteConfirmation(state, state.selectedRecord);
         }
+    });
+    root.querySelector('[data-action="delete-collection"]').addEventListener("click", () => {
+        if (state.selectedCollection === "default" || state.deletingCollectionId != null) return;
+        const collection = state.collections.find((item) => item.id === state.selectedCollection);
+        openDeleteCollectionConfirmation(state, collection);
     });
     root.querySelector('[data-action="expand-preview"]').addEventListener("click", () => openPreviewLightbox(state));
     root.querySelector('[data-action="settings"]').addEventListener("click", () => openSettings(state));
@@ -97,6 +106,18 @@ export function bindPanelEvents(state, actions) {
     });
     deleteConfirmation.addEventListener("click", (event) => {
         if (event.target === deleteConfirmation) closeDeleteConfirmation(state);
+    });
+    const deleteCollectionConfirmation = root.querySelector('[data-role="delete-collection-confirmation"]');
+    deleteCollectionConfirmation.querySelector('[data-action="cancel-delete-collection"]').addEventListener("click", () => closeDeleteCollectionConfirmation(state));
+    deleteCollectionConfirmation.querySelector('[data-action="confirm-delete-collection"]').addEventListener("click", () => {
+        const collection = state.pendingDeleteCollection;
+        if (!collection) return;
+        closeDeleteCollectionConfirmation(state, false);
+        root.querySelector('[data-role="search"]').focus({ preventScroll: true });
+        void deleteCollection(state, collection);
+    });
+    deleteCollectionConfirmation.addEventListener("click", (event) => {
+        if (event.target === deleteCollectionConfirmation) closeDeleteCollectionConfirmation(state);
     });
     const saveDialog = root.querySelector('[data-role="save-dialog"]');
     saveDialog.querySelector('[data-action="cancel-save"]').addEventListener("click", () => closeSaveDialog(state));
@@ -135,6 +156,7 @@ export function bindPanelEvents(state, actions) {
         setWidget(node, "gallery_collection_id", state.selectedCollection);
         if (node._poseGalleryState) showCurrentState(state, node._poseGalleryState);
         else showCurrentState(state, {});
+        updateCollectionActions(state);
         loadRecords(state);
     });
     root.querySelector('[data-role="search"]').addEventListener("input", () => {
@@ -165,6 +187,11 @@ export function bindPanelEvents(state, actions) {
             if (state.deleteConfirmOpen) {
                 event.preventDefault();
                 closeDeleteConfirmation(state);
+                return;
+            }
+            if (state.deleteCollectionConfirmOpen) {
+                event.preventDefault();
+                closeDeleteCollectionConfirmation(state);
                 return;
             }
             if (state.settingsOpen) {
@@ -198,11 +225,13 @@ export function bindPanelEvents(state, actions) {
                 ? state.root.querySelector('[data-role="save-dialog"]')
                 : state.deleteConfirmOpen
                     ? state.root.querySelector('[data-role="delete-confirmation"]')
-                    : state.settingsOpen
-                        ? state.root.querySelector('[data-role="settings-dialog"]')
-                        : state.previewExpanded
-                            ? state.root.querySelector('[data-role="preview-lightbox"]')
-                            : panel;
+                    : state.deleteCollectionConfirmOpen
+                        ? state.root.querySelector('[data-role="delete-collection-confirmation"]')
+                        : state.settingsOpen
+                            ? state.root.querySelector('[data-role="settings-dialog"]')
+                            : state.previewExpanded
+                                ? state.root.querySelector('[data-role="preview-lightbox"]')
+                                : panel;
         const focusable = Array.from(focusScope.querySelectorAll(
             'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]',
         )).filter((element) => !element.hidden && element.getClientRects().length > 0);

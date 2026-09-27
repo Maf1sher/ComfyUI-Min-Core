@@ -93,6 +93,7 @@ export function buildGalleryHtml(headingId) {
                                     <select class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-collection" data-role="collection" aria-label="Collection"></select>
                                     <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-save-current-btn" data-action="save-current" type="button" title="Save current inputs to the selected collection">Save current inputs</button>
                                     <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl" data-action="new-collection" type="button">New collection</button>
+                                    <button class="mcore-pg-button mcore-pg-button-small mcore-pg-gallery-header-ctrl mcore-pg-delete-collection" data-action="delete-collection" type="button" disabled>Delete collection</button>
                                 </div>
                                 <div class="mcore-pg-toolbar-group mcore-pg-browse-tools">
                                     <div class="mcore-pg-gallery-search mcore-pg-search">
@@ -153,6 +154,17 @@ export function buildGalleryHtml(headingId) {
                     <footer class="mcore-pg-confirm-actions">
                         <button class="mcore-pg-button" data-action="cancel-delete" type="button">Cancel</button>
                         <button class="mcore-pg-button mcore-pg-delete-confirm-button" data-action="confirm-delete" type="button">Delete record</button>
+                    </footer>
+                </section>
+            </div>
+            <div class="mcore-pg-confirm-dialog" data-role="delete-collection-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="${headingId}-delete-collection-title" aria-describedby="${headingId}-delete-collection-copy" hidden>
+                <section class="mcore-pg-confirm-panel">
+                    <div class="mcore-pg-eyebrow">Permanent action</div>
+                    <h2 class="mcore-pg-confirm-title" id="${headingId}-delete-collection-title">Delete collection?</h2>
+                    <p class="mcore-pg-confirm-copy" id="${headingId}-delete-collection-copy">Permanently delete <strong data-role="delete-collection-name"></strong> and <strong data-role="delete-collection-count"></strong>? This cannot be undone.</p>
+                    <footer class="mcore-pg-confirm-actions">
+                        <button class="mcore-pg-button" data-action="cancel-delete-collection" type="button">Cancel</button>
+                        <button class="mcore-pg-button mcore-pg-delete-confirm-button" data-action="confirm-delete-collection" type="button">Delete collection</button>
                     </footer>
                 </section>
             </div>
