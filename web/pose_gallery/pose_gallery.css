@@ -323,6 +323,20 @@
     vertical-align: middle;
 }
 
+.mcore-pg-gallery .mcore-pg-save-current-btn {
+    border-color: transparent;
+    background: var(--mcore-pg-accent);
+    color: var(--mcore-pg-accent-text);
+    font-weight: 700;
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--mcore-pg-accent) 24%, transparent);
+}
+
+.mcore-pg-gallery .mcore-pg-save-current-btn:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--mcore-pg-accent-hover);
+    box-shadow: 0 5px 14px color-mix(in srgb, var(--mcore-pg-accent) 32%, transparent);
+}
+
 .mcore-pg-gallery .mcore-pg-gallery-main .mcore-pg-button {
     transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
@@ -727,6 +741,35 @@
     flex-wrap: wrap;
     gap: 6px;
     overflow: visible;
+}
+
+.mcore-pg-gallery .mcore-pg-record-actions {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 9px;
+    border: 1px solid color-mix(in srgb, var(--mcore-pg-border) 42%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--mcore-pg-panel-bg) 40%, transparent);
+}
+
+.mcore-pg-gallery .mcore-pg-record-actions > .mcore-pg-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 7px 9px;
+    font-size: 11px;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+}
+
+.mcore-pg-gallery .mcore-pg-record-actions > .mcore-pg-gallery-insert-btn {
+    grid-column: 1 / -1;
+    min-height: 42px;
+    font-size: 12px;
 }
 
 .mcore-pg-gallery .mcore-pg-preview-lightbox .mcore-pg-expanded-layer-controls {
@@ -1285,6 +1328,11 @@
         align-self: start;
     }
 
+    .mcore-pg-gallery .mcore-pg-record-actions {
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .mcore-pg-gallery .mcore-pg-preview-lightbox {
         padding: 14px;
     }
@@ -1299,6 +1347,8 @@
     }
 
     .mcore-pg-gallery .mcore-pg-gallery-details {
+        grid-column: 2;
+        grid-row: 2;
         max-height: 88px;
         margin: 0;
         padding: 0;

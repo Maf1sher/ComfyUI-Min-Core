@@ -67,6 +67,9 @@ preview uses a square frame. Its layer controls remain fully visible while
 long record details scroll independently. Use its expand button to inspect the
 image in a larger overlay without changing the record list layout. The layer
 controls sit below the expanded image so they do not cover it.
+Side-panel actions are grouped below the preview, with **Use this record**
+emphasized as the primary action and current-input and delete actions arranged
+as secondary controls.
 General tags are shown separately from per-person tags. Each person's tags are
 shown in their own detail row, using the same right-aligned tag styling as the
 other record details. The record details also show the source image resolution
