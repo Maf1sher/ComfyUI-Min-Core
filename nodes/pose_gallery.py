@@ -676,6 +676,8 @@ class MinCore_PoseGallery(io.ComfyNode):
             "pose_json": pose_json,
             "general_tags": general_tags,
             "person_tags": person_tags_out,
+            "image_shape": list(image.shape),
+            "mask_count": len(masks_out),
         }
         return io.NodeOutput(
             image,

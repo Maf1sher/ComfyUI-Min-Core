@@ -35,8 +35,9 @@ name blank to use an automatic name.
 
 Use **Show current inputs** in the side panel to run the connected inputs and
 preview their image, pose, masks, and tags without saving a record or changing
-the selected gallery output. **Show node output** returns to the current output
-preview.
+the selected gallery output. When the latest node output already uses inputs,
+the button reads **Refresh current inputs**. Both paths display the same details;
+**Show node output** returns to the current output preview.
 
 ## Gallery preview
 

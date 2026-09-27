@@ -611,6 +611,7 @@ function showCurrentState(state, preview) {
         masks: preview.masks || [],
         general_tags: preview.general_tags || "",
         person_tags: preview.person_tags || [],
+        record: preview.source === "inputs" ? currentInputsDetails(preview) : null,
     });
     updateCurrentInputsButton(state);
 }
@@ -632,15 +633,30 @@ function showRecord(state, record) {
 function updateCurrentInputsButton(state) {
     const button = state.root.querySelector('[data-action="show-current-inputs"]');
     if (!button) return;
+    const nodeAlreadyShowsInputs = state.node._poseGalleryState?.source === "inputs";
     button.disabled = state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     button.textContent = state.loadingCurrentInputs
         ? "Loading current inputs…"
         : state.savingRecord || state.saveQueued ? "Saving record…"
-        : state.showingCurrentInputs ? "Show node output" : "Show current inputs";
+        : state.showingCurrentInputs ? "Show node output"
+            : nodeAlreadyShowsInputs ? "Refresh current inputs" : "Show current inputs";
     button.setAttribute("aria-pressed", String(state.showingCurrentInputs));
     const saveButton = state.root.querySelector('[data-action="save-current"]');
     if (saveButton) saveButton.disabled = state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     updateRecordActions(state);
+}
+
+function currentInputsDetails(preview) {
+    return {
+        source: "current_inputs",
+        name: "Current inputs",
+        image_shape: Array.isArray(preview.image_shape) ? preview.image_shape : [],
+        mask_count: Number.isFinite(Number(preview.mask_count))
+            ? Number(preview.mask_count)
+            : (preview.masks || []).length,
+        general_tags: preview.general_tags || "",
+        person_tags: preview.person_tags || [],
+    };
 }
 
 function showCurrentInputs(state, preview) {
@@ -652,11 +668,7 @@ function showCurrentInputs(state, preview) {
         masks: preview.masks || [],
         general_tags: preview.general_tags || "",
         person_tags: preview.person_tags || [],
-        record: {
-            ...preview,
-            source: "current_inputs",
-            name: "Current inputs",
-        },
+        record: currentInputsDetails(preview),
     });
     updateCurrentInputsButton(state);
 }
