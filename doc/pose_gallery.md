@@ -29,8 +29,9 @@ the machine where they are opened.
 
 Inputs are evaluated lazily. In gallery mode the node can load a selected
 record without running its upstream inputs. The gallery's **Save current
-inputs** button queues the node to capture connected data in the selected
-collection.
+inputs** button opens an in-gallery dialog for an optional record name, then
+queues the node to capture connected data in the selected collection. Leave the
+name blank to use an automatic name.
 
 ## Gallery preview
 

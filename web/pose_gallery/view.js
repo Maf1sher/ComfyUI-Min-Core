@@ -112,6 +112,21 @@ export function buildGalleryHtml(headingId) {
                     </footer>
                 </section>
             </div>
+            <div class="mcore-pg-confirm-dialog" data-role="save-dialog" role="dialog" aria-modal="true" aria-labelledby="${headingId}-save-title" aria-describedby="${headingId}-save-help" hidden>
+                <section class="mcore-pg-confirm-panel">
+                    <div class="mcore-pg-eyebrow">Pose Gallery</div>
+                    <h2 class="mcore-pg-confirm-title" id="${headingId}-save-title">Save current inputs</h2>
+                    <form class="mcore-pg-save-form" data-role="save-form">
+                        <label class="mcore-pg-save-label" for="${headingId}-save-name">Record name</label>
+                        <input class="mcore-pg-save-input" id="${headingId}-save-name" data-role="save-name" type="text" maxlength="120" placeholder="Leave blank for an automatic name" autocomplete="off">
+                        <p class="mcore-pg-save-help" id="${headingId}-save-help">A name will be generated automatically if this field is left blank.</p>
+                        <footer class="mcore-pg-confirm-actions">
+                            <button class="mcore-pg-button" data-action="cancel-save" type="button">Cancel</button>
+                            <button class="mcore-pg-button mcore-pg-save-submit" type="submit">Save record</button>
+                        </footer>
+                    </form>
+                </section>
+            </div>
         </div>
     `;
 }

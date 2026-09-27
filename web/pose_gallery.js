@@ -112,6 +112,35 @@ function closeDeleteConfirmation(state, restoreFocus = true) {
     if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }
 
+function openSaveDialog(state) {
+    const dialog = state.root.querySelector('[data-role="save-dialog"]');
+    if (!dialog || state.saveDialogOpen || state.savingRecord) return;
+    state.saveDialogReturnFocus = document.activeElement;
+    state.saveDialogOpen = true;
+    dialog.hidden = false;
+    const nameInput = dialog.querySelector('[data-role="save-name"]');
+    nameInput.value = "";
+    nameInput.focus({ preventScroll: true });
+}
+
+function closeSaveDialog(state, restoreFocus = true) {
+    const dialog = state.root.querySelector('[data-role="save-dialog"]');
+    if (!dialog || !state.saveDialogOpen) return;
+    state.saveDialogOpen = false;
+    dialog.hidden = true;
+    const returnFocus = state.saveDialogReturnFocus;
+    state.saveDialogReturnFocus = null;
+    if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+}
+
+function submitSaveDialog(state) {
+    if (!state.saveDialogOpen || state.savingRecord) return;
+    const name = state.root.querySelector('[data-role="save-name"]').value;
+    closeSaveDialog(state, false);
+    state.root.querySelector('[data-role="search"]').focus({ preventScroll: true });
+    void saveCurrent(state, name);
+}
+
 function applyPanelLayout(panel) {
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1280;
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
@@ -189,6 +218,9 @@ function openGallery(node) {
         deleteConfirmOpen: false,
         deleteConfirmReturnFocus: null,
         pendingDeleteRecord: null,
+        saveDialogOpen: false,
+        saveDialogReturnFocus: null,
+        savingRecord: false,
         thumbnailObserver: null,
         restoreFocus,
         resizeHandler: null,
@@ -241,7 +273,7 @@ function openGallery(node) {
     });
     root.querySelector('[data-action="close"]').addEventListener("click", () => panel.close());
     root.querySelector('[data-action="new-collection"]').addEventListener("click", () => createCollection(state));
-    root.querySelector('[data-action="save-current"]').addEventListener("click", () => saveCurrent(state));
+    root.querySelector('[data-action="save-current"]').addEventListener("click", () => openSaveDialog(state));
     root.querySelector('[data-action="use-record"]').addEventListener("click", () => useSelectedRecord(state));
     root.querySelector('[data-action="delete-record"]').addEventListener("click", () => {
         if (!state.selectionPending && state.deletingRecordId == null) {
@@ -280,6 +312,15 @@ function openGallery(node) {
     deleteConfirmation.addEventListener("click", (event) => {
         if (event.target === deleteConfirmation) closeDeleteConfirmation(state);
     });
+    const saveDialog = root.querySelector('[data-role="save-dialog"]');
+    saveDialog.querySelector('[data-action="cancel-save"]').addEventListener("click", () => closeSaveDialog(state));
+    saveDialog.querySelector('[data-role="save-form"]').addEventListener("submit", (event) => {
+        event.preventDefault();
+        submitSaveDialog(state);
+    });
+    saveDialog.addEventListener("click", (event) => {
+        if (event.target === saveDialog) closeSaveDialog(state);
+    });
     root.querySelector('[data-action="view-mode"]').addEventListener("click", () => {
         const index = GALLERY_VIEW_MODES.indexOf(state.viewMode);
         setGalleryViewMode(state, GALLERY_VIEW_MODES[(index + 1) % GALLERY_VIEW_MODES.length]);
@@ -303,6 +344,11 @@ function openGallery(node) {
     state.keydownHandler = (event) => {
         if (!panel.contains(document.activeElement) || event.defaultPrevented || state.closing) return;
         if (event.key === "Escape") {
+            if (state.saveDialogOpen) {
+                event.preventDefault();
+                closeSaveDialog(state);
+                return;
+            }
             if (state.deleteConfirmOpen) {
                 event.preventDefault();
                 closeDeleteConfirmation(state);
@@ -330,13 +376,15 @@ function openGallery(node) {
             return;
         }
         if (event.key !== "Tab") return;
-        const focusScope = state.deleteConfirmOpen
-            ? state.root.querySelector('[data-role="delete-confirmation"]')
-            : state.settingsOpen
-                ? state.root.querySelector('[data-role="settings-dialog"]')
-                : state.previewExpanded
-                    ? state.root.querySelector('[data-role="preview-lightbox"]')
-                    : panel;
+        const focusScope = state.saveDialogOpen
+            ? state.root.querySelector('[data-role="save-dialog"]')
+            : state.deleteConfirmOpen
+                ? state.root.querySelector('[data-role="delete-confirmation"]')
+                : state.settingsOpen
+                    ? state.root.querySelector('[data-role="settings-dialog"]')
+                    : state.previewExpanded
+                        ? state.root.querySelector('[data-role="preview-lightbox"]')
+                        : panel;
         const focusable = Array.from(focusScope.querySelectorAll(
             'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]',
         )).filter((element) => !element.hidden && element.getClientRects().length > 0);
@@ -578,9 +626,11 @@ function showNodeState(panelState, nodeState) {
     showCurrentState(panelState, nodeState);
 }
 
-async function saveCurrent(state) {
-    const name = window.prompt("Record name (leave blank for an automatic name)", "");
-    if (name == null) return;
+async function saveCurrent(state, name) {
+    if (state.savingRecord) return;
+    state.savingRecord = true;
+    const saveButton = state.root.querySelector('[data-action="save-current"]');
+    saveButton.disabled = true;
     try {
         await jsonRequest("/mincore/pose_gallery/capture", {
             method: "POST",
@@ -595,6 +645,9 @@ async function saveCurrent(state) {
         toast("info", "Pose Gallery", "Queued current inputs for saving.");
     } catch (error) {
         toast("error", "Pose Gallery", String(error));
+    } finally {
+        state.savingRecord = false;
+        saveButton.disabled = false;
     }
 }
 
