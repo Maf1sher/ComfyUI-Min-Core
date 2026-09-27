@@ -30,6 +30,7 @@ export interface GalleryPanelState {
     root: HTMLElement;
     collections: GalleryCollection[];
     records: GalleryRecordSummary[];
+    recordsPage: number;
     recordsStatus: "loading" | "ready" | "error";
     recordsError: string | null;
     recordsRequestId: number;
@@ -47,6 +48,7 @@ export interface GalleryPanelState {
     thumbnailImageCache: Map<string, Promise<HTMLImageElement | null>>;
     previewImages: HTMLImageElement[];
     previewLayers: Array<Record<string, any>>;
+    maskPreviewCanvases: Map<string, HTMLCanvasElement>;
     previewLayerVisibility: Record<string, boolean>;
     previewLineWidth: number;
     posePreviewRequestId: number;
@@ -71,6 +73,7 @@ export interface GalleryPanelState {
     restoreFocus: any;
     resizeHandler: (() => void) | null;
     keydownHandler: ((event: KeyboardEvent) => void) | null;
+    searchTimer: number | null;
     closing: boolean;
 }
 

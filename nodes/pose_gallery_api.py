@@ -1,5 +1,6 @@
 """HTTP endpoints and capture requests for Pose Gallery."""
 
+import asyncio
 import json
 import math
 import os
@@ -183,14 +184,26 @@ async def _get_record_asset(request: web.Request) -> web.StreamResponse:
         return web.Response(status=400, text=str(error))
     if manifest is None:
         return web.Response(status=404)
-    allowed = {"image.png", "pose.png"}
-    allowed.update(
+    mask_files = {
         f"mask_{index:04d}.png" for index in range(int(manifest.get("mask_count", 0)))
-    )
+    }
+    allowed = {"image.png", "pose.png", "thumb_image.png", "thumb_pose.png"}
+    allowed.update(mask_files)
+    allowed.update(f"thumb_{filename}" for filename in mask_files)
     if filename not in allowed:
         return web.Response(status=404)
     record_dir = gallery_store.record_dir(record_id)
-    path = os.path.join(record_dir, filename)
+    source_name = filename.removeprefix("thumb_")
+    source_path = os.path.join(record_dir, source_name)
+    if not os.path.isfile(source_path):
+        return web.Response(status=404)
+    path = (
+        await asyncio.to_thread(gallery_store.ensure_record_thumbnail, record_id, source_name)
+        if filename.startswith("thumb_")
+        else source_path
+    )
+    if path is None:
+        return web.Response(status=404)
     if not os.path.isfile(path) or not folder_paths.is_within_directory(record_dir, path):
         return web.Response(status=404)
     return web.FileResponse(path, headers={"Cache-Control": "no-store"})

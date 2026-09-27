@@ -51,7 +51,10 @@ The node preview combines the image, rendered OpenPose, and masks. Use the
 which layers appear; image and OpenPose are enabled by default, while masks are
 hidden. **Show Masks** toggles all masks together. These settings only affect
 the node preview, not its output sockets or saved gallery records. Run the node
-again after changing a setting to refresh the preview.
+again after changing a setting to refresh the preview. The composite preview is
+capped at 1024 pixels on its longest side, and temporary
+gallery layers at 2048 pixels. Output sockets and saved record data retain
+their original dimensions.
 
 ## Gallery preview
 
@@ -84,8 +87,10 @@ preview. The gallery offers medium, large, and compact tile layouts; selecting a
 card opens its layered preview and record details in the side panel. The gallery
 follows the active ComfyUI color theme. When a collection has fewer records than
 fit across the gallery, its cards expand to use the available width.
-Record thumbnails load as they approach the visible area. Collection loading
-shows progress and offers a retry if the request fails.
+Record thumbnails load as they approach the visible area. The gallery renders
+up to 48 cards per page, and reuses generated 360 × 270 thumbnails instead of
+downloading full-resolution layers for every card. Collection loading shows
+progress and offers a retry if the request fails.
 Select a record and use **Delete record** in the side panel to permanently remove
 it and its stored files. A confirmation dialog opens inside the gallery. If the
 deleted record is currently selected as the node output, the node switches back
@@ -121,5 +126,6 @@ physical socket per mask/person. Downstream nodes receive ComfyUI list behavior.
 ## Collections and records
 
 Each saved record contains the original tensor data in a NumPy archive, plus
-PNG previews for browsing. Pose images are regenerated from the stored JSON on
-execution. Records are written to the collection selected in the gallery.
+PNG previews for browsing. Small card thumbnails are generated on demand and
+stored alongside those previews. Pose images are regenerated from the stored
+JSON on execution. Records are written to the collection selected in the gallery.

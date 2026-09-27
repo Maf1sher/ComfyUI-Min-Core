@@ -6,6 +6,7 @@ const MASK_COLORS = [
     [255, 190, 60], [210, 100, 255], [50, 220, 210],
 ];
 const PREVIEW_LINE_WIDTH_KEY = "mincore.poseGallery.previewLineWidth";
+const THUMBNAIL_CACHE_LIMIT = 96;
 export const PREVIEW_LINE_WIDTH_MIN = 0.5;
 export const PREVIEW_LINE_WIDTH_MAX = 2.5;
 export const PREVIEW_LINE_WIDTH_STEP = 0.1;
@@ -168,7 +169,12 @@ export function displayUrl(urlOrItem) {
 }
 
 function loadThumbnailImage(url, cache) {
-    if (cache.has(url)) return cache.get(url);
+    if (cache.has(url)) {
+        const cached = cache.get(url);
+        cache.delete(url);
+        cache.set(url, cached);
+        return cached;
+    }
     const promise = new Promise((resolve) => {
         const image = new Image();
         image.onload = () => resolve(image.naturalWidth && image.naturalHeight ? image : null);
@@ -176,6 +182,9 @@ function loadThumbnailImage(url, cache) {
         image.src = api.apiURL(url);
     });
     cache.set(url, promise);
+    while (cache.size > THUMBNAIL_CACHE_LIMIT) {
+        cache.delete(cache.keys().next().value);
+    }
     return promise;
 }
 
@@ -253,7 +262,7 @@ export function drawRecordThumbnail(canvas, record, visibility, cache) {
     const requestId = (canvas.thumbnailRequestId || 0) + 1;
     canvas.thumbnailRequestId = requestId;
     const recordId = encodeURIComponent(record.id);
-    const assetUrl = (filename) => `/mincore/pose_gallery/records/${recordId}/assets/${filename}`;
+    const assetUrl = (filename) => `/mincore/pose_gallery/records/${recordId}/assets/thumb_${filename}`;
     const layers = [];
     if (record.has_image && (visibility.image || visibility.pose || visibility.masks)) {
         layers.push({
@@ -382,7 +391,12 @@ export function setPreviewSource(state, preview) {
     clearPosePreviewTimer(state);
     state.posePreviewRequestId = (state.posePreviewRequestId || 0) + 1;
     state.previewLayers.forEach((layer) => disposeGeneratedPosePreview(state, layer));
-    state.previewImages.forEach((image) => { image.onload = null; image.onerror = null; });
+    state.maskPreviewCanvases.clear();
+    state.previewImages.forEach((image) => {
+        image.onload = null;
+        image.onerror = null;
+        image.removeAttribute("src");
+    });
     state.previewImages = [];
     const controlContainers = [
         state.root.querySelector('[data-role="layer-controls"]'),
@@ -430,6 +444,8 @@ export function setPreviewSource(state, preview) {
                 layer.visible = checkbox.checked;
                 state.previewLayerVisibility[layer.visibilityKey] = layer.visible;
                 layer.visibilityInputs.forEach((input) => { input.checked = layer.visible; });
+                if (layer.type === "mask") state.maskPreviewCanvases.clear();
+                if (layer.visible) loadPreviewLayer(state, layer, revision);
                 renderPreview(state);
             });
             const text = document.createElement("span");
@@ -439,25 +455,7 @@ export function setPreviewSource(state, preview) {
             layer.visibilityInputs.push(checkbox);
         }
 
-        const image = new Image();
-        state.previewImages.push(image);
-        image.onload = () => {
-            if (state.previewRevision === revision) {
-                layer.image = image;
-                if (layer.type === "pose") {
-                    layer.basePreviewImage = makePosePreviewImage(image);
-                    layer.previewImage = layer.basePreviewImage;
-                    if (state.previewLineWidth !== 1 && layer.poseJson) {
-                        setPreviewLineWidth(state, state.previewLineWidth);
-                    }
-                }
-                renderPreview(state);
-            }
-        };
-        image.onerror = () => {
-            if (state.previewRevision === revision) renderPreview(state);
-        };
-        image.src = layer.url;
+        if (layer.visible || layer.type === "image") loadPreviewLayer(state, layer, revision);
     }
 
     resizePreviewCanvas(state);
@@ -466,6 +464,34 @@ export function setPreviewSource(state, preview) {
     const actionsBusy = state.selectionPending || state.deletingRecordId != null || state.usingRecord;
     state.root.querySelector('[data-action="use-record"]').disabled = !state.selectedRecord || actionsBusy;
     state.root.querySelector('[data-action="delete-record"]').disabled = !state.selectedRecord || actionsBusy;
+}
+
+function loadPreviewLayer(state, layer, revision) {
+    if (layer.image || layer.loading || layer.loadFailed) return;
+    const image = new Image();
+    layer.loading = true;
+    state.previewImages.push(image);
+    image.onload = () => {
+        if (state.previewRevision !== revision || state.closing) return;
+        layer.loading = false;
+        layer.image = image;
+        state.maskPreviewCanvases.clear();
+        if (layer.type === "pose") {
+            layer.basePreviewImage = makePosePreviewImage(image);
+            layer.previewImage = layer.basePreviewImage;
+            if (state.previewLineWidth !== 1 && layer.poseJson) {
+                setPreviewLineWidth(state, state.previewLineWidth);
+            }
+        }
+        renderPreview(state);
+    };
+    image.onerror = () => {
+        if (state.previewRevision !== revision || state.closing) return;
+        layer.loading = false;
+        layer.loadFailed = true;
+        renderPreview(state);
+    };
+    image.src = layer.url;
 }
 
 export function resizePreviewCanvas(state) {
@@ -507,6 +533,47 @@ function renderPreview(state) {
     for (const canvas of canvases) renderPreviewToCanvas(state, canvas);
 }
 
+function getMaskPreviewCanvas(state, canvas, rect) {
+    const key = `${canvas.width}x${canvas.height}`;
+    const cache = state.maskPreviewCanvases;
+    if (cache.has(key)) {
+        const cached = cache.get(key);
+        cache.delete(key);
+        cache.set(key, cached);
+        return cached;
+    }
+
+    const masks = state.previewLayers.filter((layer) => layer.type === "mask" && layer.visible && layer.image);
+    if (!masks.length) return null;
+    const overlay = document.createElement("canvas");
+    overlay.width = canvas.width;
+    overlay.height = canvas.height;
+    const overlayContext = overlay.getContext("2d");
+    const scratch = document.createElement("canvas");
+    scratch.width = canvas.width;
+    scratch.height = canvas.height;
+    const scratchContext = scratch.getContext("2d", { willReadFrequently: true });
+    if (!overlayContext || !scratchContext) return null;
+
+    for (const layer of masks) {
+        scratchContext.clearRect(0, 0, scratch.width, scratch.height);
+        scratchContext.drawImage(layer.image, rect.x, rect.y, rect.width, rect.height);
+        const pixels = scratchContext.getImageData(0, 0, scratch.width, scratch.height);
+        for (let pixel = 0; pixel < pixels.data.length; pixel += 4) {
+            const alpha = pixels.data[pixel];
+            pixels.data[pixel] = layer.color[0];
+            pixels.data[pixel + 1] = layer.color[1];
+            pixels.data[pixel + 2] = layer.color[2];
+            pixels.data[pixel + 3] = Math.round(alpha * 0.52);
+        }
+        scratchContext.putImageData(pixels, 0, 0);
+        overlayContext.drawImage(scratch, 0, 0);
+    }
+    cache.set(key, overlay);
+    while (cache.size > 2) cache.delete(cache.keys().next().value);
+    return overlay;
+}
+
 function renderPreviewToCanvas(state, canvas) {
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
@@ -533,26 +600,8 @@ function renderPreviewToCanvas(state, canvas) {
             context.restore();
         }
     }
-    for (const [index, layer] of state.previewLayers.entries()) {
-        if (layer.type !== "mask" || !layer.visible || !layer.image) continue;
-        const maskCanvas = document.createElement("canvas");
-        maskCanvas.width = canvas.width;
-        maskCanvas.height = canvas.height;
-        const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
-        if (!maskContext) continue;
-        maskContext.drawImage(layer.image, rect.x, rect.y, rect.width, rect.height);
-        const pixels = maskContext.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-        const color = layer.color || MASK_COLORS[index % MASK_COLORS.length];
-        for (let pixel = 0; pixel < pixels.data.length; pixel += 4) {
-            const alpha = pixels.data[pixel];
-            pixels.data[pixel] = color[0];
-            pixels.data[pixel + 1] = color[1];
-            pixels.data[pixel + 2] = color[2];
-            pixels.data[pixel + 3] = Math.round(alpha * 0.52);
-        }
-        maskContext.putImageData(pixels, 0, 0);
-        context.drawImage(maskCanvas, 0, 0);
-    }
+    const maskCanvas = getMaskPreviewCanvas(state, canvas, rect);
+    if (maskCanvas) context.drawImage(maskCanvas, 0, 0);
 }
 
 export function updateRecordDetails(state, record) {

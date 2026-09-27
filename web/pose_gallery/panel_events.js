@@ -137,7 +137,14 @@ export function bindPanelEvents(state, actions) {
         else showCurrentState(state, {});
         loadRecords(state);
     });
-    root.querySelector('[data-role="search"]').addEventListener("input", () => renderGalleryRecords(state));
+    root.querySelector('[data-role="search"]').addEventListener("input", () => {
+        if (state.searchTimer != null) window.clearTimeout(state.searchTimer);
+        state.recordsPage = 0;
+        state.searchTimer = window.setTimeout(() => {
+            state.searchTimer = null;
+            renderGalleryRecords(state);
+        }, 160);
+    });
     state.resizeHandler = () => {
         applyPanelLayout(panel);
         resizePreviewCanvas(state);
@@ -173,6 +180,9 @@ export function bindPanelEvents(state, actions) {
             const search = state.root.querySelector('[data-role="search"]');
             if (event.target === search && search.value) {
                 search.value = "";
+                if (state.searchTimer != null) window.clearTimeout(state.searchTimer);
+                state.searchTimer = null;
+                state.recordsPage = 0;
                 renderGalleryRecords(state);
                 event.preventDefault();
                 return;

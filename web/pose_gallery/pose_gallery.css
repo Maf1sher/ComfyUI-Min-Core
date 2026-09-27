@@ -453,6 +453,24 @@
     box-shadow: none;
 }
 
+.mcore-pg-gallery .mcore-pg-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 8px 2px 4px;
+}
+
+.mcore-pg-gallery .mcore-pg-page-button {
+    min-width: 88px;
+}
+
+.mcore-pg-gallery .mcore-pg-page-status {
+    color: var(--mcore-pg-text-muted);
+    font-size: 12px;
+    text-align: center;
+}
+
 .mcore-pg-gallery .mcore-pg-gallery-item {
     display: flex;
     flex-direction: column;

@@ -12,6 +12,9 @@ import folder_paths
 
 __all__ = ["save_temp_preview"]
 
+_MAX_NODE_PREVIEW_SIDE = 1024
+_MAX_TEMP_LAYER_SIDE = 2048
+
 
 def _preview_rgb_array(tensor: torch.Tensor | None) -> np.ndarray | None:
     if not torch.is_tensor(tensor):
@@ -40,22 +43,21 @@ def _preview_mask_array(tensor: torch.Tensor) -> np.ndarray | None:
 
 
 def _compose_node_preview(
-    image: torch.Tensor | None,
-    pose_image: torch.Tensor,
-    masks: list[torch.Tensor],
+    image_array: np.ndarray | None,
+    pose_array: np.ndarray | None,
+    mask_arrays: list[np.ndarray | None],
     show_image: bool,
     show_openpose: bool,
     show_masks: bool,
 ) -> np.ndarray:
-    image_array = _preview_rgb_array(image)
-    pose_array = _preview_rgb_array(pose_image)
-    mask_arrays = [_preview_mask_array(mask) for mask in masks]
     reference_shape = next(
         (array.shape[:2] for array in (image_array, pose_array, *mask_arrays) if array is not None),
         (512, 512),
     )
     height, width = reference_shape
-    size = (width, height)
+    scale = min(1.0, _MAX_NODE_PREVIEW_SIDE / max(height, width))
+    size = (max(1, round(width * scale)), max(1, round(height * scale)))
+    width, height = size
     resampling = getattr(PILImage, "Resampling", PILImage).LANCZOS
     canvas = PILImage.new("RGBA", size, (0, 0, 0, 255))
 
@@ -113,34 +115,33 @@ def save_temp_preview(
     directory = os.path.join(folder_paths.get_temp_directory(), subfolder)
     os.makedirs(directory, exist_ok=True)
 
-    def save_tensor(tensor: torch.Tensor, filename: str, mask: bool = False) -> dict:
-        array = tensor.detach().to(device="cpu", dtype=torch.float32).numpy()
-        if mask:
-            if array.ndim == 4:
-                array = array[0, 0]
-            elif array.ndim == 3:
-                array = array[0]
-            array = np.clip(array * 255.0, 0, 255).astype(np.uint8)
-            PILImage.fromarray(array, "L").save(os.path.join(directory, filename))
-        else:
-            if array.ndim == 4:
-                array = array[0]
-            array = np.clip(array[..., :3] * 255.0, 0, 255).astype(np.uint8)
-            PILImage.fromarray(array, "RGB").save(os.path.join(directory, filename))
+    def save_array(array: np.ndarray, filename: str, mode: str) -> dict:
+        layer = PILImage.fromarray(array, mode)
+        layer.thumbnail(
+            (_MAX_TEMP_LAYER_SIDE, _MAX_TEMP_LAYER_SIDE),
+            getattr(PILImage, "Resampling", PILImage).LANCZOS,
+        )
+        layer.save(os.path.join(directory, filename))
         return {"filename": filename, "subfolder": subfolder, "type": "temp"}
 
+    image_array = _preview_rgb_array(image) if image is not None else None
+    pose_array = _preview_rgb_array(pose_image)
+    mask_arrays = [_preview_mask_array(mask) for mask in masks]
     node_preview = _compose_node_preview(
-        image,
-        pose_image,
-        masks,
+        image_array,
+        pose_array,
+        mask_arrays,
         show_image,
         show_openpose,
         show_masks,
     )
     PILImage.fromarray(node_preview, "RGB").save(os.path.join(directory, "preview.png"))
     return {
-        "image": save_tensor(image, "image.png") if image is not None else None,
-        "pose": save_tensor(pose_image, "pose.png"),
-        "masks": [save_tensor(mask, f"mask_{index:04d}.png", mask=True) for index, mask in enumerate(masks)],
+        "image": save_array(image_array, "image.png", "RGB") if image_array is not None else None,
+        "pose": save_array(pose_array, "pose.png", "RGB") if pose_array is not None else None,
+        "masks": [
+            save_array(array, f"mask_{index:04d}.png", "L")
+            for index, array in enumerate(mask_arrays)
+        ],
         "node_preview": {"filename": "preview.png", "subfolder": subfolder, "type": "temp"},
     }

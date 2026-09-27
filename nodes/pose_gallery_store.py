@@ -21,6 +21,7 @@ __all__ = [
     "RecordManifest",
     "RecordSummary",
     "collections_path",
+    "ensure_record_thumbnail",
     "find_collection",
     "is_valid_image",
     "list_records",
@@ -117,6 +118,35 @@ def record_dir(record_id: str) -> str:
     if not folder_paths.is_within_directory(root, path):
         raise ValueError("Invalid gallery record path")
     return path
+
+
+def ensure_record_thumbnail(record_id: str, asset_name: str) -> str | None:
+    if asset_name not in ("image.png", "pose.png") and not re.fullmatch(r"mask_\d{4}\.png", asset_name):
+        raise ValueError("Invalid gallery asset name")
+    directory = record_dir(record_id)
+    source_path = os.path.join(directory, asset_name)
+    thumbnail_path = os.path.join(directory, f"thumb_{asset_name}")
+    if (
+        not folder_paths.is_within_directory(directory, source_path)
+        or not folder_paths.is_within_directory(directory, thumbnail_path)
+        or not os.path.isfile(source_path)
+    ):
+        return None
+    if os.path.isfile(thumbnail_path):
+        return thumbnail_path
+
+    temporary_path = f"{thumbnail_path}.{uuid.uuid4().hex}.tmp"
+    mode = "L" if asset_name.startswith("mask_") else "RGB"
+    try:
+        with PILImage.open(source_path) as source:
+            thumbnail = source.convert(mode)
+            thumbnail.thumbnail((360, 270), getattr(PILImage, "Resampling", PILImage).LANCZOS)
+            thumbnail.save(temporary_path, format="PNG")
+        os.replace(temporary_path, thumbnail_path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
+    return thumbnail_path
 
 
 def read_manifest(record_id: str) -> RecordManifest | None:

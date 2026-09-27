@@ -9,6 +9,8 @@ export const GALLERY_VIEW_MODES = ["medium", "large", "tiles"];
 const GALLERY_VIEW_MODE_KEY = "openpose_editor.gallery.viewMode";
 const THUMBNAIL_LAYER_KEY = "mincore.poseGallery.thumbnailLayers";
 const THUMBNAIL_LAYERS = ["image", "pose", "masks"];
+const RECORDS_PER_PAGE = 48;
+const RECORD_SEARCH_TEXT = new WeakMap();
 
 export function getStoredThumbnailLayerVisibility() {
     const defaults = { image: true, pose: true, masks: false };
@@ -236,6 +238,15 @@ function normalizeSearch(value) {
     return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().trim();
 }
 
+function recordSearchText(record) {
+    if (!RECORD_SEARCH_TEXT.has(record)) {
+        RECORD_SEARCH_TEXT.set(record, normalizeSearch(
+            `${record.name} ${record.general_tags} ${(record.person_tags || []).join(" ")}`,
+        ));
+    }
+    return RECORD_SEARCH_TEXT.get(record);
+}
+
 function addStatusState(carousel, { titleText, copyText, role = "status", retry }) {
     const state = document.createElement("div");
     state.className = "mcore-pg-empty-state mcore-pg-status-state";
@@ -258,15 +269,19 @@ function addStatusState(carousel, { titleText, copyText, role = "status", retry 
     carousel.appendChild(state);
 }
 
-export function renderRecords(state, { onSelect, onRetry }) {
+export function renderRecords(state, { onSelect, onRetry, onPageChange }) {
     const container = state.root.querySelector('[data-role="records"]');
     state.thumbnailObserver?.disconnect();
     container.replaceChildren();
     container.setAttribute("aria-busy", String(state.recordsStatus === "loading"));
     const query = normalizeSearch(state.root.querySelector('[data-role="search"]').value);
-    const records = state.records.filter((record) => (
-        !query || normalizeSearch(`${record.name} ${record.general_tags} ${(record.person_tags || []).join(" ")}`).includes(query)
-    ));
+    const records = state.records.filter((record) => !query || recordSearchText(record).includes(query));
+    const pageCount = Math.max(1, Math.ceil(records.length / RECORDS_PER_PAGE));
+    state.recordsPage = Math.max(0, Math.min(state.recordsPage || 0, pageCount - 1));
+    const pageRecords = records.slice(
+        state.recordsPage * RECORDS_PER_PAGE,
+        (state.recordsPage + 1) * RECORDS_PER_PAGE,
+    );
 
     const collection = state.collections.find((item) => item.id === state.selectedCollection);
     const section = document.createElement("section");
@@ -296,7 +311,7 @@ export function renderRecords(state, { onSelect, onRetry }) {
             retry: onRetry,
         });
     } else {
-        for (const record of records) {
+        for (const record of pageRecords) {
             const item = document.createElement("div");
             item.className = "mcore-pg-gallery-item";
             item.tabIndex = 0;
@@ -382,6 +397,33 @@ export function renderRecords(state, { onSelect, onRetry }) {
     }
 
     section.appendChild(carousel);
+    if (state.recordsStatus === "ready" && !state.recordsError && records.length > RECORDS_PER_PAGE) {
+        const firstRecord = state.recordsPage * RECORDS_PER_PAGE + 1;
+        const lastRecord = Math.min(firstRecord + pageRecords.length - 1, records.length);
+        const pagination = document.createElement("nav");
+        pagination.className = "mcore-pg-pagination";
+        pagination.setAttribute("aria-label", "Gallery pages");
+        const previous = document.createElement("button");
+        previous.className = "mcore-pg-button mcore-pg-page-button";
+        previous.type = "button";
+        previous.dataset.action = "previous-page";
+        previous.textContent = "Previous";
+        previous.disabled = state.recordsPage === 0;
+        previous.addEventListener("click", () => onPageChange?.(state.recordsPage - 1, "previous-page"));
+        const status = document.createElement("span");
+        status.className = "mcore-pg-page-status";
+        status.setAttribute("aria-live", "polite");
+        status.textContent = `Showing ${firstRecord}–${lastRecord} of ${records.length} · Page ${state.recordsPage + 1} of ${pageCount}`;
+        const next = document.createElement("button");
+        next.className = "mcore-pg-button mcore-pg-page-button";
+        next.type = "button";
+        next.dataset.action = "next-page";
+        next.textContent = "Next";
+        next.disabled = state.recordsPage >= pageCount - 1;
+        next.addEventListener("click", () => onPageChange?.(state.recordsPage + 1, "next-page"));
+        pagination.append(previous, status, next);
+        section.appendChild(pagination);
+    }
     container.appendChild(section);
     setGalleryViewMode(state, state.viewMode);
     if (state.recordsStatus === "loading") {

@@ -50,6 +50,18 @@ function renderGalleryRecords(state) {
     renderRecords(state, {
         onSelect: (recordId) => selectRecord(state, recordId),
         onRetry: () => state.retryCollections ? refreshCollections(state) : loadRecords(state),
+        onPageChange: (page, action) => {
+            state.recordsPage = page;
+            renderGalleryRecords(state);
+            const records = state.root.querySelector('[data-role="records"]');
+            records.scrollTop = 0;
+            let focusTarget = state.root.querySelector(`[data-action="${action}"]`);
+            if (focusTarget?.disabled) {
+                const fallbackAction = action === "next-page" ? "previous-page" : "next-page";
+                focusTarget = state.root.querySelector(`[data-action="${fallbackAction}"]`);
+            }
+            focusTarget?.focus({ preventScroll: true });
+        },
     });
 }
 
@@ -69,6 +81,7 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         root,
         collections: [],
         records: [],
+        recordsPage: 0,
         recordsStatus: "loading",
         recordsError: null,
         recordsRequestId: 0,
@@ -86,6 +99,7 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         thumbnailImageCache: new Map(),
         previewImages: [],
         previewLayers: [],
+        maskPreviewCanvases: new Map(),
         previewLayerVisibility: {},
         previewLineWidth: getStoredPreviewLineWidth(),
         posePreviewRequestId: 0,
@@ -109,6 +123,7 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         restoreFocus,
         resizeHandler: null,
         keydownHandler: null,
+        searchTimer: null,
         closing: false,
     };
 }
@@ -157,6 +172,7 @@ function openGallery(node) {
     const cleanup = () => {
         window.removeEventListener("resize", state.resizeHandler);
         window.removeEventListener("keydown", state.keydownHandler);
+        if (state.searchTimer != null) window.clearTimeout(state.searchTimer);
         state.thumbnailObserver?.disconnect();
         state.thumbnailImageCache.clear();
         backdrop.remove();
@@ -164,7 +180,11 @@ function openGallery(node) {
         state.previewLayers.forEach((layer) => {
             if (layer.previewObjectUrl) URL.revokeObjectURL(layer.previewObjectUrl);
         });
-        state.previewImages.forEach((image) => { image.onload = null; image.onerror = null; });
+        state.previewImages.forEach((image) => {
+            image.onload = null;
+            image.onerror = null;
+            image.removeAttribute("src");
+        });
         if (node._poseGalleryPanel === state) node._poseGalleryPanel = null;
         if (state.restoreFocus?.isConnected) state.restoreFocus.focus({ preventScroll: true });
     };
@@ -276,6 +296,7 @@ async function createCollection(state, name) {
 async function loadRecords(state) {
     if (state.closing) return false;
     state.retryCollections = false;
+    state.recordsPage = 0;
     const requestId = ++state.recordsRequestId;
     const collectionId = state.selectedCollection;
     state.records = [];
