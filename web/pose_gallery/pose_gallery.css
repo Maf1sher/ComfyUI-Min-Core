@@ -672,14 +672,17 @@
     inset: 0;
     z-index: 30;
     display: none;
-    place-items: center;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
     padding: 24px;
     background: rgba(8, 10, 14, .88);
     backdrop-filter: blur(5px);
 }
 
 .mcore-pg-gallery .mcore-pg-preview-lightbox:not([hidden]) {
-    display: grid;
+    display: flex;
 }
 
 .mcore-pg-gallery .mcore-pg-preview-lightbox[hidden] {
@@ -688,10 +691,12 @@
 
 .mcore-pg-gallery .mcore-pg-expanded-preview {
     display: block;
+    flex: 0 1 auto;
     width: min(88vw, 1200px);
     height: min(82vh, 1000px);
     max-width: 100%;
     max-height: 100%;
+    min-height: 0;
     border: 1px solid var(--mcore-pg-canvas-border);
     border-radius: 12px;
     background: var(--mcore-pg-canvas-bg);
@@ -699,23 +704,8 @@
 }
 
 .mcore-pg-gallery .mcore-pg-preview-lightbox-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    z-index: 1;
-    min-height: 36px;
-    padding: 0 14px;
-    border: 1px solid color-mix(in srgb, var(--mcore-pg-border) 75%, transparent);
-    border-radius: 8px;
-    background: var(--mcore-pg-button-bg);
-    color: var(--mcore-pg-text);
-    font: 600 12px Inter, "Segoe UI", Arial, sans-serif;
-    cursor: pointer;
-}
-
-.mcore-pg-gallery .mcore-pg-preview-lightbox-close:hover {
-    border-color: var(--mcore-pg-accent);
-    background: var(--mcore-pg-button-hover-bg);
+    align-self: flex-end;
+    flex: 0 0 auto;
 }
 
 .mcore-pg-gallery .mcore-pg-layer-controls {
@@ -725,6 +715,24 @@
     gap: 6px;
     max-height: 88px;
     overflow-y: auto;
+}
+
+.mcore-pg-gallery .mcore-pg-preview-lightbox .mcore-pg-expanded-layer-controls {
+    justify-content: center;
+    width: max-content;
+    max-width: calc(100% - 36px);
+    max-height: none;
+    overflow-y: visible;
+    padding: 8px;
+    border: 1px solid color-mix(in srgb, var(--mcore-pg-border) 75%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--mcore-pg-panel-bg) 92%, transparent);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+    backdrop-filter: blur(10px);
+}
+
+.mcore-pg-gallery .mcore-pg-preview-lightbox .mcore-pg-expanded-layer-controls:empty {
+    display: none;
 }
 
 .mcore-pg-gallery .mcore-pg-settings-button {
@@ -1147,9 +1155,8 @@
         height: min(76vh, 800px);
     }
 
-    .mcore-pg-gallery .mcore-pg-preview-lightbox-close {
-        top: 8px;
-        right: 8px;
+    .mcore-pg-gallery .mcore-pg-preview-lightbox .mcore-pg-expanded-layer-controls {
+        max-width: calc(100% - 24px);
     }
 
     .mcore-pg-gallery .mcore-pg-gallery-details {

@@ -17,7 +17,7 @@ export function buildGalleryHtml(headingId) {
                         <canvas class="mcore-pg-gallery-selected-preview" data-role="preview" width="320" height="220" aria-label="Selected record preview"></canvas>
                         <button class="mcore-pg-button mcore-pg-preview-expand" data-action="expand-preview" type="button" aria-label="Expand preview" aria-expanded="false" title="Expand preview">⤢</button>
                     </div>
-                    <div class="mcore-pg-layer-controls" data-role="layer-controls"></div>
+                    <div class="mcore-pg-layer-controls" data-role="layer-controls" role="group" aria-label="Preview layers"></div>
                     <button class="mcore-pg-button mcore-pg-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
                     <div class="mcore-pg-gallery-details">
                         <div class="mcore-pg-gallery-details-empty" data-role="details-empty">Select a record to inspect its image, pose, masks, and tags.</div>
@@ -68,8 +68,9 @@ export function buildGalleryHtml(headingId) {
                 </div>
             </main>
             <div class="mcore-pg-preview-lightbox" data-role="preview-lightbox" role="dialog" aria-modal="true" aria-label="Expanded preview" hidden>
+                <button class="mcore-pg-button mcore-pg-preview-lightbox-close" data-action="close-preview" type="button" aria-label="Close preview" title="Close preview">×</button>
                 <canvas class="mcore-pg-expanded-preview" data-role="expanded-preview" aria-label="Expanded selected record preview"></canvas>
-                <button class="mcore-pg-button mcore-pg-preview-lightbox-close" data-action="close-preview" type="button">Close preview</button>
+                <div class="mcore-pg-layer-controls mcore-pg-expanded-layer-controls" data-role="expanded-layer-controls" role="group" aria-label="Preview layers"></div>
             </div>
             <div class="mcore-pg-settings-dialog" data-role="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="${headingId}-settings-title" hidden>
                 <section class="mcore-pg-settings-panel">

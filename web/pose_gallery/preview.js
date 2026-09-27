@@ -220,8 +220,11 @@ export function setPreviewSource(state, preview) {
     state.previewLayers.forEach((layer) => disposeGeneratedPosePreview(state, layer));
     state.previewImages.forEach((image) => { image.onload = null; image.onerror = null; });
     state.previewImages = [];
-    const controls = state.root.querySelector('[data-role="layer-controls"]');
-    controls.replaceChildren();
+    const controlContainers = [
+        state.root.querySelector('[data-role="layer-controls"]'),
+        state.root.querySelector('[data-role="expanded-layer-controls"]'),
+    ].filter(Boolean);
+    controlContainers.forEach((controls) => controls.replaceChildren());
 
     const layers = [
         {
@@ -251,20 +254,25 @@ export function setPreviewSource(state, preview) {
     state.previewLayers = layers;
 
     for (const layer of layers) {
-        const label = document.createElement("label");
-        label.className = "mcore-pg-layer-option";
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.checked = layer.visible;
-        checkbox.addEventListener("change", () => {
-            layer.visible = checkbox.checked;
-            state.previewLayerVisibility[layer.visibilityKey] = layer.visible;
-            renderPreview(state);
-        });
-        const text = document.createElement("span");
-        text.textContent = layer.name;
-        label.append(checkbox, text);
-        controls.appendChild(label);
+        layer.visibilityInputs = [];
+        for (const controls of controlContainers) {
+            const label = document.createElement("label");
+            label.className = "mcore-pg-layer-option";
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = layer.visible;
+            checkbox.addEventListener("change", () => {
+                layer.visible = checkbox.checked;
+                state.previewLayerVisibility[layer.visibilityKey] = layer.visible;
+                layer.visibilityInputs.forEach((input) => { input.checked = layer.visible; });
+                renderPreview(state);
+            });
+            const text = document.createElement("span");
+            text.textContent = layer.name;
+            label.append(checkbox, text);
+            controls.appendChild(label);
+            layer.visibilityInputs.push(checkbox);
+        }
 
         const image = new Image();
         state.previewImages.push(image);
