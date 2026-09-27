@@ -6,6 +6,8 @@ Pose Gallery Min stores complete image/pose records locally: a source image,
 pose JSON, any number of masks, general tags, and tags for each person. Open the
 gallery from the node button or its context menu. It starts with an empty
 `Default` collection; additional collections can be created in the gallery.
+The node's **Open Pose Gallery** button stays compact and centered, regardless
+of the node's image preview size.
 
 Records are stored under ComfyUI's `input/mincore/pose_gallery/` directory and
 survive restarts and custom-node updates. They are not embedded in workflow

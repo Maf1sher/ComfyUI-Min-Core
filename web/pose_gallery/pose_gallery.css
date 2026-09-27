@@ -993,13 +993,19 @@
 
 .mcore-pg-gallery .mcore-pg-node-button,
 .mcore-pg-node-button {
+    display: block;
     width: 100%;
-    padding: 9px 12px;
+    max-width: 220px;
+    height: 36px;
+    box-sizing: border-box;
+    margin: 0 auto;
+    padding: 0 12px;
     border: 1px solid var(--border-color, #555);
     border-radius: 8px;
     background: var(--comfy-menu-secondary-bg, var(--comfy-menu-bg, #303030));
     color: var(--fg-color, #eee);
     font: 600 13px Inter, "Segoe UI", Arial, sans-serif;
+    white-space: nowrap;
     cursor: pointer;
     transition: background 140ms ease, border-color 140ms ease;
 }
@@ -1008,6 +1014,11 @@
 .mcore-pg-node-button:hover {
     background: var(--content-hover-bg, #454545);
     border-color: var(--primary-bg, var(--primary-bg-color, #2f8cff));
+}
+
+.mcore-pg-node-button:focus-visible {
+    outline: 2px solid var(--primary-bg, var(--primary-bg-color, #2f8cff));
+    outline-offset: 2px;
 }
 
 .mcore-pg-gallery .mcore-pg-state-retry {

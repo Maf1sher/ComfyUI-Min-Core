@@ -523,7 +523,7 @@ function setupNode(node) {
         openGallery(node);
     });
     node.addDOMWidget("pose_gallery_open", "div", button, {
-        computeSize: () => [Math.max(220, node.size?.[0] || 220), 40],
+        computeSize: () => [220, 40],
         serialize: false,
     });
     const size = node.computeSize();
