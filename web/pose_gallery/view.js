@@ -19,6 +19,7 @@ export function buildGalleryHtml(headingId) {
                     </div>
                     <div class="mcore-pg-layer-controls" data-role="layer-controls" role="group" aria-label="Preview layers"></div>
                     <button class="mcore-pg-button mcore-pg-gallery-insert-btn" data-action="use-record" disabled>Use this record</button>
+                    <button class="mcore-pg-button" data-action="show-current-inputs" type="button">Show current inputs</button>
                     <button class="mcore-pg-button mcore-pg-delete-record" data-action="delete-record" type="button" disabled>Delete record</button>
                     <div class="mcore-pg-gallery-details">
                         <div class="mcore-pg-gallery-details-empty" data-role="details-empty">Select a record to inspect its image, pose, masks, and tags.</div>

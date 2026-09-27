@@ -224,9 +224,17 @@ def _load_record(record_id: str) -> tuple[dict, torch.Tensor, list[torch.Tensor]
     return manifest, image, masks
 
 
-def _save_temp_preview(node_id: str, image: torch.Tensor, pose_image: torch.Tensor, masks: list[torch.Tensor]) -> dict:
+def _save_temp_preview(
+    node_id: str,
+    image: torch.Tensor,
+    pose_image: torch.Tensor,
+    masks: list[torch.Tensor],
+    scope: str = "output",
+) -> dict:
     safe_node_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(node_id))
     subfolder = os.path.join("MinCorePoseGallery", safe_node_id).replace("\\", "/")
+    if scope != "output":
+        subfolder = f"{subfolder}/{scope}"
     directory = os.path.join(folder_paths.get_temp_directory(), subfolder)
     os.makedirs(directory, exist_ok=True)
 
@@ -254,17 +262,25 @@ def _save_temp_preview(node_id: str, image: torch.Tensor, pose_image: torch.Tens
 
 
 class _PoseGalleryUI(_UIOutput):
-    def __init__(self, preview: dict, state: dict, capture: dict | None):
+    def __init__(
+        self,
+        preview: dict,
+        state: dict,
+        capture: dict | None,
+        current_inputs: dict | None = None,
+    ):
         super().__init__()
         self.preview = preview
         self.state = state
         self.capture = capture
+        self.current_inputs = current_inputs
 
     def as_dict(self) -> dict:
         return {
             "images": [self.preview["image"]],
             "pose_gallery_state": [self.state],
             "pose_gallery_capture": [self.capture] if self.capture else [],
+            "pose_gallery_current_inputs": [self.current_inputs] if self.current_inputs else [],
         }
 
 
@@ -408,14 +424,18 @@ async def _request_capture(request: web.Request) -> web.Response:
     if not isinstance(payload, dict):
         return web.json_response({"error": "Invalid payload"}, status=400)
     node_id = str(payload.get("node_id", ""))
+    action = str(payload.get("action", "save"))
     collection_id = str(payload.get("collection_id", "default"))
     if not re.fullmatch(r"\d{1,12}", node_id):
         return web.json_response({"error": "Invalid node ID"}, status=400)
-    if _find_collection(collection_id) is None:
+    if action not in ("save", "preview"):
+        return web.json_response({"error": "Invalid capture action"}, status=400)
+    if action == "save" and _find_collection(collection_id) is None:
         return web.json_response({"error": "Unknown collection"}, status=404)
     token = uuid.uuid4().hex
     _pending_captures[node_id] = {
         "token": token,
+        "action": action,
         "collection_id": collection_id,
         "name": str(payload.get("name", ""))[:120],
     }
@@ -594,7 +614,8 @@ class MinCore_PoseGallery(io.ComfyNode):
         pose_image = torch.from_numpy(render_pose_image(pose_json)).unsqueeze(0)
 
         saved_record = None
-        if capture_request is not None:
+        current_inputs_preview = None
+        if capture_request is not None and capture_request["action"] == "save":
             saved_record = _save_record(
                 capture_request["collection_id"],
                 capture_request["name"],
@@ -613,6 +634,36 @@ class MinCore_PoseGallery(io.ComfyNode):
                 "id": saved_record["id"],
                 "name": saved_record["name"],
                 "collection_id": saved_record["collection_id"],
+            }
+        elif capture_request is not None and capture_request["action"] == "preview":
+            if not torch.is_tensor(input_image) or input_image.ndim != 4 or input_image.shape[-1] < 3:
+                raise RuntimeError("Pose Gallery: connect a valid IMAGE to preview current inputs.")
+            current_pose_json = input_pose_json if isinstance(input_pose_json, str) else str(input_pose_json or "")
+            current_masks = [
+                value for value in _ordered_values(input_masks, "mask_")
+                if torch.is_tensor(value)
+            ]
+            current_person_tags = [
+                str(value or "") for value in _ordered_values(input_person_tags, "person_tag_")
+            ]
+            current_general_tags = (
+                input_general_tags if isinstance(input_general_tags, str) else str(input_general_tags or "")
+            )
+            current_pose_image = torch.from_numpy(render_pose_image(current_pose_json)).unsqueeze(0)
+            current_preview = _save_temp_preview(
+                node_id,
+                input_image,
+                current_pose_image,
+                current_masks,
+                scope="current_inputs",
+            )
+            current_inputs_preview = {
+                **current_preview,
+                "pose_json": current_pose_json,
+                "general_tags": current_general_tags,
+                "person_tags": current_person_tags,
+                "image_shape": list(input_image.shape),
+                "mask_count": len(current_masks),
             }
 
         preview = _save_temp_preview(node_id, image, pose_image, masks_out)
@@ -633,5 +684,5 @@ class MinCore_PoseGallery(io.ComfyNode):
             masks_out,
             general_tags,
             person_tags_out,
-            ui=_PoseGalleryUI(preview, state, saved_record),
+            ui=_PoseGalleryUI(preview, state, saved_record, current_inputs_preview),
         )

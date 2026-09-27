@@ -403,12 +403,17 @@ export function updateRecordDetails(state, record) {
         const element = state.root.querySelector(`[data-detail="${name}"]`);
         if (element) element.textContent = value || "-";
     };
+    const currentInputs = record.source === "current_inputs";
+    const kicker = state.root.querySelector(".mcore-pg-details-kicker");
+    if (kicker) kicker.textContent = currentInputs ? "Current inputs" : "Record details";
     const imageShape = Array.isArray(record.image_shape) ? record.image_shape : [];
     const imageDimensions = imageShape.length >= 4 ? imageShape.slice(-3, -1) : imageShape.slice(0, 2);
     const [height, width] = imageDimensions.map(Number);
-    setDetail("name", record.name || "Untitled record");
-    setDetail("collection", state.collections.find((item) => item.id === record.collection_id)?.name || "-");
-    setDetail("created", record.created ? new Date(record.created).toLocaleString() : "-");
+    setDetail("name", currentInputs ? "Current inputs" : record.name || "Untitled record");
+    setDetail("collection", currentInputs
+        ? "—"
+        : state.collections.find((item) => item.id === record.collection_id)?.name || "-");
+    setDetail("created", currentInputs || !record.created ? "—" : new Date(record.created).toLocaleString());
     setDetail("resolution", Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0
         ? `${width} × ${height} px`
         : "-");

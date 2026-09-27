@@ -114,7 +114,7 @@ function closeDeleteConfirmation(state, restoreFocus = true) {
 
 function openSaveDialog(state) {
     const dialog = state.root.querySelector('[data-role="save-dialog"]');
-    if (!dialog || state.saveDialogOpen || state.savingRecord) return;
+    if (!dialog || state.saveDialogOpen || state.savingRecord || state.saveQueued || state.loadingCurrentInputs) return;
     state.saveDialogReturnFocus = document.activeElement;
     state.saveDialogOpen = true;
     dialog.hidden = false;
@@ -221,6 +221,9 @@ function openGallery(node) {
         saveDialogOpen: false,
         saveDialogReturnFocus: null,
         savingRecord: false,
+        saveQueued: false,
+        loadingCurrentInputs: false,
+        showingCurrentInputs: false,
         thumbnailObserver: null,
         restoreFocus,
         resizeHandler: null,
@@ -275,8 +278,11 @@ function openGallery(node) {
     root.querySelector('[data-action="new-collection"]').addEventListener("click", () => createCollection(state));
     root.querySelector('[data-action="save-current"]').addEventListener("click", () => openSaveDialog(state));
     root.querySelector('[data-action="use-record"]').addEventListener("click", () => useSelectedRecord(state));
+    root.querySelector('[data-action="show-current-inputs"]').addEventListener("click", () => {
+        void toggleCurrentInputs(state);
+    });
     root.querySelector('[data-action="delete-record"]').addEventListener("click", () => {
-        if (!state.selectionPending && state.deletingRecordId == null) {
+        if (!state.selectionPending && state.deletingRecordId == null && !state.loadingCurrentInputs && !state.saveQueued) {
             openDeleteConfirmation(state, state.selectedRecord);
         }
     });
@@ -536,7 +542,8 @@ async function selectRecord(state, recordId) {
 }
 
 function updateRecordActions(state) {
-    const busy = state.selectionPending || state.deletingRecordId != null || state.usingRecord;
+    const busy = state.selectionPending || state.deletingRecordId != null || state.usingRecord
+        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
     state.root.querySelector('[data-action="use-record"]').disabled = !state.selectedRecord || busy;
     state.root.querySelector('[data-action="delete-record"]').disabled = !state.selectedRecord || busy;
 }
@@ -587,6 +594,7 @@ async function deleteSelectedRecord(state, record) {
 }
 
 function showCurrentState(state, preview) {
+    state.showingCurrentInputs = false;
     state.selectionRequestId += 1;
     state.selectionPending = false;
     state.selectionTargetRecordId = null;
@@ -604,9 +612,11 @@ function showCurrentState(state, preview) {
         general_tags: preview.general_tags || "",
         person_tags: preview.person_tags || [],
     });
+    updateCurrentInputsButton(state);
 }
 
 function showRecord(state, record) {
+    state.showingCurrentInputs = false;
     setPreviewSource(state, {
         image: record.assets.image,
         pose: record.assets.pose,
@@ -616,6 +626,68 @@ function showRecord(state, record) {
         person_tags: record.person_tags || [],
         record,
     });
+    updateCurrentInputsButton(state);
+}
+
+function updateCurrentInputsButton(state) {
+    const button = state.root.querySelector('[data-action="show-current-inputs"]');
+    if (!button) return;
+    button.disabled = state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    button.textContent = state.loadingCurrentInputs
+        ? "Loading current inputs…"
+        : state.savingRecord || state.saveQueued ? "Saving record…"
+        : state.showingCurrentInputs ? "Show node output" : "Show current inputs";
+    button.setAttribute("aria-pressed", String(state.showingCurrentInputs));
+    const saveButton = state.root.querySelector('[data-action="save-current"]');
+    if (saveButton) saveButton.disabled = state.loadingCurrentInputs || state.savingRecord || state.saveQueued;
+    updateRecordActions(state);
+}
+
+function showCurrentInputs(state, preview) {
+    state.showingCurrentInputs = true;
+    setPreviewSource(state, {
+        image: preview.image,
+        pose: preview.pose,
+        pose_json: preview.pose_json,
+        masks: preview.masks || [],
+        general_tags: preview.general_tags || "",
+        person_tags: preview.person_tags || [],
+        record: {
+            ...preview,
+            source: "current_inputs",
+            name: "Current inputs",
+        },
+    });
+    updateCurrentInputsButton(state);
+}
+
+async function toggleCurrentInputs(state) {
+    if (state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
+    if (state.showingCurrentInputs) {
+        if (state.selectedRecord) showRecord(state, state.selectedRecord);
+        else if (state.node._poseGalleryState) showNodeState(state, state.node._poseGalleryState);
+        else showCurrentState(state, {});
+        return;
+    }
+
+    state.loadingCurrentInputs = true;
+    updateCurrentInputsButton(state);
+    try {
+        await jsonRequest("/mincore/pose_gallery/capture", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "preview",
+                node_id: String(state.node.id),
+            }),
+        });
+        await queueNode(state.node);
+        toast("info", "Pose Gallery", "Queued current inputs preview.");
+    } catch (error) {
+        state.loadingCurrentInputs = false;
+        updateCurrentInputsButton(state);
+        toast("error", "Pose Gallery", String(error));
+    }
 }
 
 function showNodeState(panelState, nodeState) {
@@ -627,10 +699,9 @@ function showNodeState(panelState, nodeState) {
 }
 
 async function saveCurrent(state, name) {
-    if (state.savingRecord) return;
+    if (state.savingRecord || state.saveQueued || state.loadingCurrentInputs) return;
     state.savingRecord = true;
-    const saveButton = state.root.querySelector('[data-action="save-current"]');
-    saveButton.disabled = true;
+    updateCurrentInputsButton(state);
     try {
         await jsonRequest("/mincore/pose_gallery/capture", {
             method: "POST",
@@ -641,18 +712,22 @@ async function saveCurrent(state, name) {
                 name,
             }),
         });
+        state.saveQueued = true;
+        updateCurrentInputsButton(state);
         await queueNode(state.node);
         toast("info", "Pose Gallery", "Queued current inputs for saving.");
     } catch (error) {
+        state.saveQueued = false;
         toast("error", "Pose Gallery", String(error));
     } finally {
         state.savingRecord = false;
-        saveButton.disabled = false;
+        updateCurrentInputsButton(state);
     }
 }
 
 async function useSelectedRecord(state) {
-    if (!state.selectedRecord || state.deletingRecordId != null || state.selectionPending || state.usingRecord) return;
+    if (!state.selectedRecord || state.deletingRecordId != null || state.selectionPending || state.usingRecord
+        || state.loadingCurrentInputs || state.savingRecord || state.saveQueued) return;
     const selectedRecord = state.selectedRecord;
     state.usingRecord = true;
     updateRecordActions(state);
@@ -704,12 +779,30 @@ api.addEventListener("executed", ({ detail }) => {
     if (!node || node.comfyClass !== NODE_TYPE) return;
     const output = detail.output;
     const state = Array.isArray(output.pose_gallery_state) ? output.pose_gallery_state[0] : null;
+    const currentInputs = Array.isArray(output.pose_gallery_current_inputs)
+        ? output.pose_gallery_current_inputs[0]
+        : null;
     if (state) {
         node._poseGalleryState = state;
-        if (node._poseGalleryPanel) showNodeState(node._poseGalleryPanel, state);
+        if (node._poseGalleryPanel) {
+            const panelState = node._poseGalleryPanel;
+            if (currentInputs) {
+                panelState.loadingCurrentInputs = false;
+                showCurrentInputs(panelState, currentInputs);
+            } else {
+                showNodeState(panelState, state);
+            }
+        }
+    } else if (currentInputs && node._poseGalleryPanel) {
+        node._poseGalleryPanel.loadingCurrentInputs = false;
+        showCurrentInputs(node._poseGalleryPanel, currentInputs);
     }
     const capture = Array.isArray(output.pose_gallery_capture) ? output.pose_gallery_capture[0] : null;
     if (capture?.id) {
+        if (node._poseGalleryPanel) {
+            node._poseGalleryPanel.saveQueued = false;
+            updateCurrentInputsButton(node._poseGalleryPanel);
+        }
         setWidget(node, "gallery_record_id", capture.id);
         if (node._poseGalleryPanel) {
             const panelState = node._poseGalleryPanel;
@@ -720,6 +813,19 @@ api.addEventListener("executed", ({ detail }) => {
         toast("success", "Pose Gallery", `Saved: ${capture.name}`);
     }
 });
+
+function clearPendingGalleryOperations() {
+    for (const node of app.graph?._nodes || []) {
+        const panelState = node.comfyClass === NODE_TYPE ? node._poseGalleryPanel : null;
+        if (!panelState) continue;
+        panelState.loadingCurrentInputs = false;
+        panelState.saveQueued = false;
+        updateCurrentInputsButton(panelState);
+    }
+}
+
+api.addEventListener("execution_error", clearPendingGalleryOperations);
+api.addEventListener("execution_interrupted", clearPendingGalleryOperations);
 
 app.registerExtension({
     name: "MinCore.PoseGallery",

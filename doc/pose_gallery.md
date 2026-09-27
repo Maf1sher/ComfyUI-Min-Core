@@ -33,6 +33,11 @@ inputs** button opens an in-gallery dialog for an optional record name, then
 queues the node to capture connected data in the selected collection. Leave the
 name blank to use an automatic name.
 
+Use **Show current inputs** in the side panel to run the connected inputs and
+preview their image, pose, masks, and tags without saving a record or changing
+the selected gallery output. **Show node output** returns to the current output
+preview.
+
 ## Gallery preview
 
 The detail preview layers the source image, rendered pose, and each mask. Image
