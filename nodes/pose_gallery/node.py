@@ -168,6 +168,7 @@ class MinCore_PoseGallery(io.ComfyNode):
                                )),
                 io.String.Input("gallery_collection_id", default="default", socketless=True),
                 io.String.Input("gallery_record_id", default="", socketless=True),
+                io.String.Input("gallery_layer_visibility", default="{}", socketless=True),
             ],
             outputs=[
                 io.Image.Output(

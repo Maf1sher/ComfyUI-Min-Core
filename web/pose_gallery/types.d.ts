@@ -55,6 +55,7 @@ export interface GalleryPanelState {
     previewLayers: Array<Record<string, any>>;
     maskPreviewCanvases: Map<string, HTMLCanvasElement>;
     previewLayerVisibility: Record<string, boolean>;
+    persistLayerVisibility: () => void;
     previewLineWidth: number;
     posePreviewRequestId: number;
     posePreviewTimer: number | null;

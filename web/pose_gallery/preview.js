@@ -443,6 +443,7 @@ export function setPreviewSource(state, preview) {
             checkbox.addEventListener("change", () => {
                 layer.visible = checkbox.checked;
                 state.previewLayerVisibility[layer.visibilityKey] = layer.visible;
+                state.persistLayerVisibility?.();
                 layer.visibilityInputs.forEach((input) => { input.checked = layer.visible; });
                 if (layer.type === "mask") state.maskPreviewCanvases.clear();
                 if (layer.visible) loadPreviewLayer(state, layer, revision);

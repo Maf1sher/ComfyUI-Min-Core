@@ -7,32 +7,13 @@ import {
 
 export const GALLERY_VIEW_MODES = ["medium", "large", "tiles"];
 const GALLERY_VIEW_MODE_KEY = "openpose_editor.gallery.viewMode";
-const THUMBNAIL_LAYER_KEY = "mincore.poseGallery.thumbnailLayers";
 const THUMBNAIL_LAYERS = ["image", "pose", "masks"];
 const RECORDS_PER_PAGE = 48;
 const RECORD_SEARCH_TEXT = new WeakMap();
 
-export function getStoredThumbnailLayerVisibility() {
-    const defaults = { image: true, pose: true, masks: false };
-    try {
-        const stored = JSON.parse(localStorage.getItem(THUMBNAIL_LAYER_KEY) || "{}");
-        return Object.fromEntries(THUMBNAIL_LAYERS.map((layer) => [
-            layer,
-            typeof stored?.[layer] === "boolean" ? stored[layer] : defaults[layer],
-        ]));
-    } catch (_error) {
-        return defaults;
-    }
-}
-
 export function setThumbnailLayerVisibility(state, layer, visible) {
     if (!THUMBNAIL_LAYERS.includes(layer)) return;
     state.thumbnailLayerVisibility[layer] = Boolean(visible);
-    try {
-        localStorage.setItem(THUMBNAIL_LAYER_KEY, JSON.stringify(state.thumbnailLayerVisibility));
-    } catch (_error) {
-        // The setting still applies to the current gallery if storage is unavailable.
-    }
     syncThumbnailLayerControls(state);
 }
 

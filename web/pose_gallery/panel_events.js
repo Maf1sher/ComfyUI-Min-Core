@@ -195,6 +195,7 @@ export function bindPanelEvents(state, actions) {
     root.querySelectorAll('[data-role="record-layer"]').forEach((input) => {
         input.addEventListener("change", () => {
             setThumbnailLayerVisibility(state, input.dataset.layer, input.checked);
+            state.persistLayerVisibility?.();
             renderGalleryRecords(state);
         });
     });

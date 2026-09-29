@@ -2,6 +2,7 @@ import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 import { jsonRequest, queueNode, toast } from "./pose_gallery/api.js";
 import { applyPanelLayout, bindPanelEvents } from "./pose_gallery/panel_events.js";
+import { getNodeLayerSettings, saveNodeLayerSettings } from "./pose_gallery/layer_settings.js";
 import {
     getStoredPreviewLineWidth,
     resizePreviewCanvas,
@@ -11,7 +12,6 @@ import {
 import {
     buildGalleryHtml,
     createThumbnailObserver,
-    getStoredThumbnailLayerVisibility,
     getStoredViewMode,
     renderRecords,
     setGalleryViewMode,
@@ -76,7 +76,7 @@ function renderGalleryRecords(state) {
  * @returns {GalleryPanelState}
  */
 function createPanelState(node, panel, backdrop, root, restoreFocus) {
-    return {
+    const state = {
         node,
         panel,
         backdrop,
@@ -101,12 +101,11 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         selectedRecord: null,
         selectedCollection: String(readWidget(node, "gallery_collection_id", "default")),
         viewMode: getStoredViewMode(),
-        thumbnailLayerVisibility: getStoredThumbnailLayerVisibility(),
+        ...getNodeLayerSettings(node),
         thumbnailImageCache: new Map(),
         previewImages: [],
         previewLayers: [],
         maskPreviewCanvases: new Map(),
-        previewLayerVisibility: {},
         previewLineWidth: getStoredPreviewLineWidth(),
         posePreviewRequestId: 0,
         posePreviewTimer: null,
@@ -138,6 +137,8 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         searchTimer: null,
         closing: false,
     };
+    state.persistLayerVisibility = () => saveNodeLayerSettings(state, setWidget);
+    return state;
 }
 
 
@@ -781,7 +782,7 @@ async function useSelectedRecord(state) {
 }
 
 function hideTrackingWidgets(node) {
-    for (const name of ["gallery_collection_id", "gallery_record_id"]) {
+    for (const name of ["gallery_collection_id", "gallery_record_id", "gallery_layer_visibility"]) {
         const widget = node.widgets?.find((item) => item.name === name);
         if (!widget) continue;
         widget.type = "hidden";
