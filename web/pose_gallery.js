@@ -771,6 +771,7 @@ async function useSelectedRecord(state) {
         setWidget(state.node, "output_source", "gallery");
         await queueNode(state.node);
         toast("success", "Pose Gallery", `Selected: ${selectedRecord.name}`);
+        state.panel.close();
     } catch (error) {
         toast("error", "Pose Gallery", String(error));
     } finally {

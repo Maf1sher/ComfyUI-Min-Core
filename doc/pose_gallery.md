@@ -9,8 +9,9 @@ managed from the gallery.
 
 In the gallery, **Save as record** stores connected inputs and **Preview inputs**
 shows them without saving or changing the current output. To use a saved record,
-select it and click **Use selected record**. Records can be browsed with their
-image, pose, and mask layers.
+select it and click **Use selected record**. The gallery closes automatically
+after the record is queued for use. Records can be browsed with their image,
+pose, and mask layers.
 
 ![Pose Gallery Min gallery window](img/pose_gallery_min_gui.png)
 
