@@ -48,6 +48,7 @@ export interface GalleryPanelState {
     retryCollections: boolean;
     selectedRecord: GalleryRecord | null;
     selectedCollection: string;
+    rememberedPreviewRecordId: string;
     viewMode: "medium" | "large" | "tiles";
     thumbnailLayerVisibility: Record<string, boolean>;
     thumbnailImageCache: Map<string, Promise<HTMLImageElement | null>>;

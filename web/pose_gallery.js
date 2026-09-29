@@ -100,6 +100,7 @@ function createPanelState(node, panel, backdrop, root, restoreFocus) {
         retryCollections: false,
         selectedRecord: null,
         selectedCollection: String(readWidget(node, "gallery_collection_id", "default")),
+        rememberedPreviewRecordId: String(readWidget(node, "gallery_preview_record_id", "")).trim(),
         viewMode: getStoredViewMode(),
         ...getNodeLayerSettings(node),
         thumbnailImageCache: new Map(),
@@ -242,7 +243,20 @@ function openGallery(node) {
         state.root.querySelector('[data-role="search"]').focus({ preventScroll: true });
         resizePreviewCanvas(state);
     });
-    refreshCollections(state).then(() => {
+    refreshCollections(state).then(async () => {
+        if (state.rememberedPreviewRecordId) {
+            const restored = await selectRecord(state, state.rememberedPreviewRecordId, true);
+            if (
+                !restored
+                && !state.closing
+                && !state.selectionPending
+                && !state.selectedRecord
+                && String(readWidget(node, "gallery_preview_record_id", "")) === state.rememberedPreviewRecordId
+            ) {
+                showCurrentState(state, node._poseGalleryState || {}, true);
+            }
+            return;
+        }
         if (node._poseGalleryState) showNodeState(state, node._poseGalleryState);
     }).catch((error) => toast("error", "Pose Gallery", String(error)));
 }
@@ -348,15 +362,15 @@ async function loadRecords(state) {
 }
 
 /** @param {GalleryPanelState} state @param {string} recordId */
-async function selectRecord(state, recordId) {
-    if (state.bulkOperation != null || state.deletingRecordId === String(recordId) || state.movingRecordId != null) return;
+async function selectRecord(state, recordId, silent = false) {
+    if (state.bulkOperation != null || state.deletingRecordId === String(recordId) || state.movingRecordId != null) return false;
     const requestId = ++state.selectionRequestId;
     state.selectionPending = true;
     state.selectionTargetRecordId = String(recordId);
     updateRecordActions(state);
     try {
         const record = await jsonRequest(`/mincore/pose_gallery/records/${recordId}`);
-        if (requestId !== state.selectionRequestId || state.closing) return;
+        if (requestId !== state.selectionRequestId || state.closing) return false;
         state.selectionPending = false;
         state.selectionTargetRecordId = null;
         state.selectedRecord = record;
@@ -367,12 +381,14 @@ async function selectRecord(state, recordId) {
             item.querySelector(".mcore-pg-gallery-item-preview")?.setAttribute("aria-pressed", String(isSelected));
         });
         showRecord(state, record);
+        return true;
     } catch (error) {
-        if (requestId !== state.selectionRequestId || state.closing) return;
+        if (requestId !== state.selectionRequestId || state.closing) return false;
         state.selectionPending = false;
         state.selectionTargetRecordId = null;
         updateRecordActions(state);
-        toast("error", "Pose Gallery", String(error));
+        if (!silent) toast("error", "Pose Gallery", String(error));
+        return false;
     }
 }
 
@@ -600,8 +616,16 @@ async function deleteCollection(state, collection) {
 }
 
 /** @param {GalleryPanelState} state @param {Record<string, any>} preview */
-function showCurrentState(state, preview) {
+function setPreviewRecordId(state, recordId) {
+    const value = String(recordId || "");
+    if (String(readWidget(state.node, "gallery_preview_record_id", "")) === value) return;
+    setWidget(state.node, "gallery_preview_record_id", value);
+}
+
+/** @param {GalleryPanelState} state @param {Record<string, any>} preview @param {boolean} preservePreviewRecordId */
+function showCurrentState(state, preview, preservePreviewRecordId = false) {
     state.showingCurrentInputs = false;
+    if (!preservePreviewRecordId) setPreviewRecordId(state, "");
     state.selectionRequestId += 1;
     state.selectionPending = false;
     state.selectionTargetRecordId = null;
@@ -626,6 +650,7 @@ function showCurrentState(state, preview) {
 /** @param {GalleryPanelState} state @param {GalleryRecord} record */
 function showRecord(state, record) {
     state.showingCurrentInputs = false;
+    setPreviewRecordId(state, record.id);
     setPreviewSource(state, {
         image: record.assets.image,
         pose: record.assets.pose,
@@ -678,6 +703,7 @@ function currentInputsDetails(preview) {
 /** @param {GalleryPanelState} state @param {Record<string, any>} preview */
 function showCurrentInputs(state, preview) {
     state.showingCurrentInputs = true;
+    setPreviewRecordId(state, "");
     setPreviewSource(state, {
         image: preview.image,
         pose: preview.pose,
@@ -782,7 +808,7 @@ async function useSelectedRecord(state) {
 }
 
 function hideTrackingWidgets(node) {
-    for (const name of ["gallery_collection_id", "gallery_record_id", "gallery_layer_visibility"]) {
+    for (const name of ["gallery_collection_id", "gallery_record_id", "gallery_layer_visibility", "gallery_preview_record_id"]) {
         const widget = node.widgets?.find((item) => item.name === name);
         if (!widget) continue;
         widget.type = "hidden";
