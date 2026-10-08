@@ -1,0 +1,356 @@
+.mcore-ic-panel {
+    --mcore-ic-panel-bg: var(--comfy-menu-bg, var(--bg-color, #202020));
+    --mcore-ic-surface: var(--comfy-menu-secondary-bg, #303030);
+    --mcore-ic-input-bg: var(--comfy-input-bg, #222);
+    --mcore-ic-text: var(--fg-color, #eee);
+    --mcore-ic-muted: var(--input-text, #bbb);
+    --mcore-ic-border: var(--border-color, #555);
+    --mcore-ic-accent: var(--primary-bg, var(--primary-bg-color, #2f8cff));
+    --mcore-ic-accent-hover: var(--primary-hover-bg, var(--primary-bg-hover, #579cff));
+    position: fixed !important;
+    z-index: 1000 !important;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+    margin: 0 !important;
+    border: 1px solid var(--mcore-ic-border);
+    border-radius: 12px;
+    background: var(--mcore-ic-panel-bg);
+    color: var(--mcore-ic-text);
+    box-shadow: 0 20px 45px rgba(0, 0, 0, .38);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px) scale(.99);
+    transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.mcore-ic-panel.mcore-ic-open {
+    opacity: 1;
+    pointer-events: auto !important;
+    transform: translateY(0) scale(1);
+}
+
+.mcore-ic-panel .mcore-ic-native-header,
+.mcore-ic-panel .mcore-ic-native-footer,
+.mcore-ic-panel .mcore-ic-native-close {
+    display: none;
+}
+
+.mcore-ic-panel .dialog-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+}
+
+.mcore-ic-panel .mcore-ic-content {
+    display: flex;
+    flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    pointer-events: auto;
+}
+
+.mcore-ic-backdrop {
+    position: fixed;
+    z-index: 999 !important;
+    inset: 0;
+    background: var(--p-mask-background, rgba(0, 0, 0, .62));
+    opacity: 0;
+    animation: mcore-ic-backdrop-in 140ms ease forwards;
+}
+
+@keyframes mcore-ic-backdrop-in {
+    to { opacity: 1; }
+}
+
+.mcore-ic-editor,
+.mcore-ic-editor * {
+    box-sizing: border-box;
+}
+
+.mcore-ic-editor {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    color: var(--mcore-ic-text);
+    font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+
+.mcore-ic-header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    min-width: 0;
+}
+
+.mcore-ic-header h1 {
+    margin: 0;
+    font-size: clamp(20px, 2vw, 26px);
+    font-weight: 700;
+    letter-spacing: -.035em;
+    line-height: 1.15;
+}
+
+.mcore-ic-eyebrow {
+    margin: 0 0 5px;
+    color: var(--mcore-ic-accent);
+    font-size: 9px;
+    font-weight: 750;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+}
+
+.mcore-ic-subtitle {
+    margin: 6px 0 0;
+    color: var(--mcore-ic-muted);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.mcore-ic-icon-button {
+    display: grid;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 1px solid var(--mcore-ic-border);
+    border-radius: 8px;
+    background: var(--mcore-ic-surface);
+    color: var(--mcore-ic-text);
+    font: 24px/1 Arial, sans-serif;
+    cursor: pointer;
+}
+
+.mcore-ic-workspace {
+    display: grid;
+    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 285px);
+    gap: 14px;
+    min-width: 0;
+    min-height: 0;
+}
+
+.mcore-ic-canvas-wrap {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--mcore-ic-border) 70%, transparent);
+    border-radius: 10px;
+    background: #17191d;
+}
+
+.mcore-ic-canvas-wrap canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    touch-action: none;
+    cursor: grab;
+}
+
+.mcore-ic-canvas-wrap canvas.is-dragging {
+    cursor: grabbing;
+}
+
+.mcore-ic-status {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    max-width: min(80%, 440px);
+    padding: 10px 14px;
+    transform: translate(-50%, -50%);
+    border: 1px solid var(--mcore-ic-border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--mcore-ic-panel-bg) 92%, transparent);
+    color: var(--mcore-ic-text);
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: center;
+}
+
+.mcore-ic-status[hidden] {
+    display: none;
+}
+
+.mcore-ic-controls {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 13px;
+    padding: 15px;
+    border: 1px solid color-mix(in srgb, var(--mcore-ic-border) 60%, transparent);
+    border-radius: 10px;
+    background: var(--mcore-ic-surface);
+}
+
+.mcore-ic-control-heading p {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 650;
+}
+
+.mcore-ic-field {
+    display: grid;
+    gap: 6px;
+    color: var(--mcore-ic-text);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.mcore-ic-field span {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.mcore-ic-field small {
+    color: var(--mcore-ic-muted);
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.mcore-ic-field input {
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 9px;
+    border: 1px solid var(--mcore-ic-border);
+    border-radius: 7px;
+    outline: none;
+    background: var(--mcore-ic-input-bg);
+    color: var(--mcore-ic-text);
+    font: 12px Inter, "Segoe UI", Arial, sans-serif;
+}
+
+.mcore-ic-field input:focus-visible,
+.mcore-ic-icon-button:focus-visible,
+.mcore-ic-button:focus-visible {
+    outline: 2px solid var(--mcore-ic-accent);
+    outline-offset: 2px;
+}
+
+.mcore-ic-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 2px;
+    color: var(--mcore-ic-text);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.mcore-ic-check input {
+    accent-color: var(--mcore-ic-accent);
+}
+
+.mcore-ic-help {
+    margin: 0;
+    color: var(--mcore-ic-muted);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.mcore-ic-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 8px;
+}
+
+.mcore-ic-button {
+    min-height: 36px;
+    padding: 7px 12px;
+    border: 1px solid var(--mcore-ic-border);
+    border-radius: 7px;
+    color: var(--mcore-ic-text);
+    font: 650 11px Inter, "Segoe UI", Arial, sans-serif;
+    cursor: pointer;
+}
+
+.mcore-ic-button-secondary {
+    background: var(--mcore-ic-input-bg);
+}
+
+.mcore-ic-button-primary {
+    flex: 1 1 auto;
+    border-color: var(--mcore-ic-accent);
+    background: var(--mcore-ic-accent);
+}
+
+.mcore-ic-button-primary:hover:not(:disabled) {
+    background: var(--mcore-ic-accent-hover);
+}
+
+.mcore-ic-button:disabled {
+    opacity: .55;
+    cursor: wait;
+}
+
+.mcore-ic-apply-status {
+    min-height: 14px;
+    margin: -5px 0 0;
+    color: var(--mcore-ic-muted);
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.mcore-ic-node-button {
+    width: 100%;
+    min-height: 32px;
+    border: 1px solid color-mix(in srgb, var(--border-color, #555) 75%, transparent);
+    border-radius: 7px;
+    background: var(--comfy-menu-secondary-bg, #303030);
+    color: var(--fg-color, #eee);
+    font: 600 12px Inter, "Segoe UI", Arial, sans-serif;
+    cursor: pointer;
+}
+
+.mcore-ic-node-button:hover {
+    border-color: var(--primary-bg, #2f8cff);
+    background: var(--content-hover-bg, #454545);
+}
+
+@media (max-width: 760px) {
+    .mcore-ic-editor {
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .mcore-ic-workspace {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(180px, 1fr) auto;
+        overflow: auto;
+    }
+
+    .mcore-ic-controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .mcore-ic-control-heading,
+    .mcore-ic-help,
+    .mcore-ic-actions,
+    .mcore-ic-apply-status {
+        grid-column: 1 / -1;
+    }
+
+    .mcore-ic-actions {
+        margin-top: 0;
+    }
+}

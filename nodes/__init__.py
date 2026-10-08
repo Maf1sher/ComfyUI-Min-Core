@@ -12,6 +12,7 @@ from .openpose_studio import MinCore_OpenPoseStudio, MinCore_ShowString
 from .pose_gallery import MinCore_PoseGallery
 from .drag_crop import DragCrop, CropInfoInterpreter
 from .sdxl_unique_tags import MinCore_UniqueSDXLTags
+from .image_compositor import MinCore_ImageCompositor
 
 NODE_CLASS_LIST = [
     ImageLatch,
@@ -23,4 +24,5 @@ NODE_CLASS_LIST = [
     DragCrop,
     CropInfoInterpreter,
     MinCore_UniqueSDXLTags,
+    MinCore_ImageCompositor,
 ]

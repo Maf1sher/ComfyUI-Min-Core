@@ -13,3 +13,4 @@ Below is the list of nodes included in this package. For a detailed description 
 * **[Pose Gallery Min](doc/pose_gallery.md)** — Stores pose JSON, masks, tags, and an optional source image together as reusable records in local gallery collections.
 * **[Drag Crop Min](doc/drag_crop.md)** — An interactive UI node for cropping an image by dragging a selection box directly on the preview. Supports syncing with masks and outputs coordinate data. Based on [ComfyUI-Olm-DragCrop](https://github.com/o-l-l-i/ComfyUI-Olm-DragCrop).
 * **[Unique Tags](doc/unique_tags.md)** — Combines comma-separated tags from dynamic text inputs, removes duplicates after trimming surrounding whitespace, and returns the result with a configurable separator and optional trailing separator.
+* **[Image Compositor Min](doc/image_compositor.md)** — Composites a foreground image over a movable, resizable background using an interactive editor. Supports a transparency mask for the foreground.
