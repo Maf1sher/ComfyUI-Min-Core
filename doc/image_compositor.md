@@ -8,6 +8,10 @@ The editor shows the source over the background, with a toggleable outline aroun
 the full source-image frame. The outline is an editor aid and is not part of the
 output. Drag in the preview to move the background, use the mouse wheel to scale
 it around the pointer, or enter the current transform values in the editor.
+Click **Refresh Images** to run the node and reload the source and background
+previews; connected inputs, including the optional source mask, are resolved by
+the normal node execution. The node is also an execution target, so a normal
+workflow run evaluates it even when its output is not connected downstream.
 Click **Apply** to update the node output. Transform values are stored with the
 workflow; the frame-visibility preference is local to the browser.
 

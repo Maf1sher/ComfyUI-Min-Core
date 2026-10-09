@@ -199,10 +199,21 @@
     background: var(--mcore-ic-surface);
 }
 
+.mcore-ic-control-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
 .mcore-ic-control-heading p {
     margin: 0;
     font-size: 16px;
     font-weight: 650;
+}
+
+.mcore-ic-refresh-button {
+    flex: 0 0 auto;
 }
 
 .mcore-ic-field {
@@ -343,7 +354,7 @@
         gap: 10px;
     }
 
-    .mcore-ic-control-heading,
+    .mcore-ic-control-top,
     .mcore-ic-help,
     .mcore-ic-actions,
     .mcore-ic-apply-status {

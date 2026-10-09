@@ -220,6 +220,7 @@ class MinCore_ImageCompositor(io.ComfyNode):
                 "Place a foreground image over a movable and resizable background. "
                 "Edit the background position in the image editor."
             ),
+            is_output_node=True,
             has_intermediate_output=True,
             inputs=[
                 io.Image.Input("source", tooltip="Foreground image; its dimensions define the output frame."),

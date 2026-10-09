@@ -18,6 +18,19 @@ function notify(severity, summary, detail = "") {
     app.extensionManager?.toast?.add({ severity, summary, detail, life: 5000 });
 }
 
+function queueNodeExecution(node) {
+    if (node?.id == null || node.id < 0) {
+        throw new Error("Add the node to the workflow before running it.");
+    }
+    const queueWasProcessing = app.processingQueue;
+    return app.queuePrompt(0, 1, [String(node.id)]).then((queued) => {
+        if (queued === false && !queueWasProcessing) {
+            throw new Error("ComfyUI could not queue this node. Check the execution errors.");
+        }
+        return queued;
+    });
+}
+
 function setEditorState(node, transform) {
     const widget = node.widgets?.find((item) => item.name === "editor_state");
     if (!widget) throw new Error("Image Compositor internal state widget is missing.");
@@ -84,9 +97,12 @@ function buildEditorHtml(nodeId) {
                     <div class="mcore-ic-status" data-role="status" role="status">Waiting for image previews…</div>
                 </section>
                 <aside class="mcore-ic-controls">
-                    <div class="mcore-ic-control-heading">
-                        <span class="mcore-ic-eyebrow">BACKGROUND</span>
-                        <p>Position and scale</p>
+                    <div class="mcore-ic-control-top">
+                        <div class="mcore-ic-control-heading">
+                            <span class="mcore-ic-eyebrow">BACKGROUND</span>
+                            <p>Position and scale</p>
+                        </div>
+                        <button class="mcore-ic-button mcore-ic-button-secondary mcore-ic-refresh-button" data-action="refresh" type="button">Refresh Images</button>
                     </div>
                     <label class="mcore-ic-field">
                         <span>Horizontal offset <small>X · px</small></span>
@@ -250,6 +266,15 @@ function setEditorEnabled(state, enabled) {
     }
 }
 
+function finishRefresh(state, message = "") {
+    if (!state.refreshing) return;
+    state.refreshing = false;
+    const button = state.root.querySelector('[data-action="refresh"]');
+    button.disabled = false;
+    button.textContent = "Refresh Images";
+    if (message) state.root.querySelector('[data-role="apply-status"]').textContent = message;
+}
+
 async function applyPreviewState(state, payload) {
     const requestId = ++state.previewRequestId;
     state.sourceImage = null;
@@ -279,13 +304,17 @@ async function applyPreviewState(state, payload) {
         const applyStatus = state.root.querySelector('[data-role="apply-status"]');
         if (applyStatus.textContent.startsWith("Queued") || applyStatus.textContent.startsWith("Updating")) {
             applyStatus.textContent = "Output updated.";
+        } else if (state.refreshing) {
+            applyStatus.textContent = "Images refreshed.";
         }
+        finishRefresh(state);
         syncControls(state);
         setStatus(state, "", false);
         drawPreview(state);
     } catch (error) {
         if (state.closing || requestId !== state.previewRequestId) return;
         setStatus(state, String(error));
+        finishRefresh(state, String(error));
     }
 }
 
@@ -371,6 +400,23 @@ function bindEditorEvents(state) {
         updateTransform(state, { x: 0, y: 0, scale: 1 });
         root.querySelector('[data-role="apply-status"]').textContent = "Transform reset. Apply to update the node output.";
     });
+    root.querySelector('[data-action="refresh"]').addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        const status = root.querySelector('[data-role="apply-status"]');
+        if (state.refreshing) return;
+        try {
+            state.refreshing = true;
+            button.disabled = true;
+            button.textContent = "Refreshing…";
+            status.textContent = "Refreshing source, background, and mask…";
+            setStatus(state, "Running Image Compositor Min…");
+            await queueNodeExecution(state.node);
+        } catch (error) {
+            setStatus(state, String(error));
+            finishRefresh(state, String(error));
+            notify("error", "Image Compositor", String(error));
+        }
+    });
     root.querySelector('[data-action="apply"]').addEventListener("click", async () => {
         const button = root.querySelector('[data-action="apply"]');
         const status = root.querySelector('[data-role="apply-status"]');
@@ -382,10 +428,7 @@ function bindEditorEvents(state) {
             button.disabled = true;
             button.textContent = "Queuing…";
             status.textContent = "Updating the node output…";
-            if (state.node?.id == null || state.node.id < 0) {
-                throw new Error("Add the node to the workflow before applying the transform.");
-            }
-            await app.queuePrompt(0, 1, [String(state.node.id)]);
+            await queueNodeExecution(state.node);
             status.textContent = "Queued. The editor preview updates when execution finishes.";
         } catch (error) {
             status.textContent = String(error);
@@ -493,6 +536,7 @@ function openEditor(node) {
         resizeHandler: null,
         keydownHandler: null,
         drag: null,
+        refreshing: false,
         closing: false,
         restoreFocus,
     };
@@ -527,10 +571,7 @@ function openEditor(node) {
     if (node._imageCompositorState) {
         void applyPreviewState(state, node._imageCompositorState);
     } else {
-        setStatus(state, "Running the node to load image previews…");
-        app.queuePrompt(0, 1, [String(node.id)]).catch((error) => {
-            if (!state.closing) setStatus(state, String(error));
-        });
+        setStatus(state, "No image previews yet. Click Refresh Images to run the node.");
     }
 }
 
@@ -562,15 +603,48 @@ function setupNode(node) {
 }
 
 api.addEventListener("executed", ({ detail }) => {
-    if (!detail?.output) return;
+    if (!detail) return;
     const node = app.graph?.getNodeById?.(detail.node);
     if (!node || node.comfyClass !== NODE_TYPE) return;
+    const panelState = node._imageCompositorPanel;
+    if (!detail.output) {
+        if (panelState?.refreshing) {
+            const message = "The node did not return image previews.";
+            setStatus(panelState, message);
+            finishRefresh(panelState, message);
+        }
+        return;
+    }
     const state = Array.isArray(detail.output.image_compositor_state)
         ? detail.output.image_compositor_state[0]
         : null;
-    if (!state) return;
+    if (!state) {
+        if (panelState?.refreshing) {
+            const message = "The node did not return image previews.";
+            setStatus(panelState, message);
+            finishRefresh(panelState, message);
+        }
+        return;
+    }
     node._imageCompositorState = state;
-    if (node._imageCompositorPanel) void applyPreviewState(node._imageCompositorPanel, state);
+    if (panelState) void applyPreviewState(panelState, state);
+});
+
+function finishPendingRefreshes(message) {
+    for (const node of app.graph?._nodes || []) {
+        const state = node.comfyClass === NODE_TYPE ? node._imageCompositorPanel : null;
+        if (state?.refreshing) {
+            setStatus(state, message);
+            finishRefresh(state, message);
+        }
+    }
+}
+
+api.addEventListener("execution_error", () => {
+    finishPendingRefreshes("Node execution failed. Check ComfyUI for details.");
+});
+api.addEventListener("execution_interrupted", () => {
+    finishPendingRefreshes("Execution interrupted.");
 });
 
 app.registerExtension({
