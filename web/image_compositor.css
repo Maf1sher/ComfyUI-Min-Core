@@ -199,13 +199,6 @@
     background: var(--mcore-ic-surface);
 }
 
-.mcore-ic-control-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-}
-
 .mcore-ic-control-heading p {
     margin: 0;
     font-size: 16px;
@@ -366,7 +359,6 @@
         gap: 10px;
     }
 
-    .mcore-ic-control-top,
     .mcore-ic-help,
     .mcore-ic-actions,
     .mcore-ic-apply-status {

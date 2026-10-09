@@ -114,12 +114,9 @@ function buildEditorHtml(nodeId) {
                     <div class="mcore-ic-status" data-role="status" role="status">Waiting for image previews…</div>
                 </section>
                 <aside class="mcore-ic-controls">
-                    <div class="mcore-ic-control-top">
-                        <div class="mcore-ic-control-heading">
-                            <span class="mcore-ic-eyebrow">BACKGROUND</span>
-                            <p>Position and scale</p>
-                        </div>
-                        <button class="mcore-ic-button mcore-ic-button-secondary mcore-ic-refresh-button" data-action="refresh" type="button">Refresh Images</button>
+                    <div class="mcore-ic-control-heading">
+                        <span class="mcore-ic-eyebrow">BACKGROUND</span>
+                        <p>Position and scale</p>
                     </div>
                     <label class="mcore-ic-field">
                         <span>Horizontal offset <small>X · px</small></span>
@@ -144,6 +141,7 @@ function buildEditorHtml(nodeId) {
                     <p class="mcore-ic-help">Drag in the preview to move the background. Use the mouse wheel to zoom around the pointer.</p>
                     <div class="mcore-ic-actions">
                         <button class="mcore-ic-button mcore-ic-button-secondary" data-action="reset" type="button">Reset</button>
+                        <button class="mcore-ic-button mcore-ic-button-secondary mcore-ic-refresh-button" data-action="refresh" type="button">Refresh Images</button>
                         <button class="mcore-ic-button mcore-ic-button-primary" data-action="apply" type="button">Apply</button>
                     </div>
                     <p class="mcore-ic-apply-status" data-role="apply-status" aria-live="polite"></p>
