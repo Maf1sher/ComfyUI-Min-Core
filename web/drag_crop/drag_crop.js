@@ -44,6 +44,14 @@ app.registerExtension({
       node.serialize_widgets = true;
       node.properties = node.properties || {};
 
+      if (node.properties.aspectRatio === undefined) {
+        const savedAspectRatio = Number(node.properties.aspectRatioString);
+        node.properties.aspectRatio = Number.isFinite(savedAspectRatio)
+          ? savedAspectRatio
+          : 0;
+      }
+      delete node.properties.aspectRatioString;
+
       const defaults = {
         dragStart: null,
         dragEnd: null,
@@ -56,7 +64,7 @@ app.registerExtension({
         crop_width: DEFAULT_SIZE,
         crop_height: DEFAULT_SIZE,
         snapValue: DEFAULT_SNAP_VALUE,
-        aspectRatioString: TEXTCONTENT.aspectStringMsg,
+        aspectRatio: 0,
         aspectLockEnabled: false,
         infoDisplayEnabled: true,
       };
@@ -114,20 +122,21 @@ app.registerExtension({
 
       const existingAspectWidget = getWidget(node, TEXTCONTENT.aspectRatioWidget);
       if (existingAspectWidget) {
-        existingAspectWidget.value = node.properties.aspectRatioString || existingAspectWidget.value;
+        existingAspectWidget.value = node.properties.aspectRatio;
         existingAspectWidget.callback = (value) => {
-          node.properties.aspectRatioString = value;
+          node.properties.aspectRatio = Number(value);
           commitState(node);
         };
       } else {
         node.addWidget(
-          "string",
+          "number",
           TEXTCONTENT.aspectRatioWidget,
-          node.properties.aspectRatioString,
+          node.properties.aspectRatio,
           (value) => {
-            node.properties.aspectRatioString = value;
+            node.properties.aspectRatio = Number(value);
             commitState(node);
-          }
+          },
+          { min: 0, step: 0.001, precision: 3 }
         );
       }
 
@@ -165,7 +174,7 @@ app.registerExtension({
             const ratioWidget = getWidget(node, TEXTCONTENT.aspectRatioWidget);
             if (ratioWidget && aspectRatio !== null) {
               ratioWidget.value = aspectRatio;
-              node.properties.aspectRatioString = aspectRatio;
+              node.properties.aspectRatio = aspectRatio;
               commitState(node);
             }
             node.setDirtyCanvas(true);

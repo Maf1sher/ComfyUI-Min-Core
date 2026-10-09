@@ -93,7 +93,7 @@ export function handleOnMouseMove(node, e, pos, graphCanvas, preview) {
   const mousePos = [e.canvasX, e.canvasY];
   const mousePosLocal = getPreviewLocalPos(node.pos, mousePos, preview);
   const lockedAspectRatio = node.properties.aspectLockEnabled
-    ? getLockedAspectRatio(node.properties.aspectRatioString)
+    ? getLockedAspectRatio(node.properties.aspectRatio)
     : null;
 
   const scaleX = node.properties.actualImageWidth / preview.width;

@@ -34,28 +34,16 @@ export function _applySnapToDragBox(nodeCtx, snapValue, preview) {
   return { dragStart: previewDragStart, dragEnd: previewDragEnd };
 }
 
-export function getLockedAspectRatio(aspectRatioString) {
-  const ratioStr = String(aspectRatioString || "").trim();
-  if (!ratioStr) return null;
-
-  if (ratioStr.includes(":")) {
-    const parts = ratioStr.split(":").map(Number);
-    if (
-      parts.length === 2 &&
-      !isNaN(parts[0]) &&
-      !isNaN(parts[1]) &&
-      parts[1] !== 0
-    ) {
-      return parts[0] / parts[1];
-    }
-  } else {
-    const num = parseFloat(ratioStr);
-    if (!isNaN(num) && num > 0) {
-      return num;
-    }
+export function getLockedAspectRatio(aspectRatio) {
+  if (
+    typeof aspectRatio !== "number" ||
+    !Number.isFinite(aspectRatio) ||
+    aspectRatio <= 0
+  ) {
+    return null;
   }
 
-  return null;
+  return aspectRatio;
 }
 
 export function getRatioFromCurrentCrop(dragStart, dragEnd) {
@@ -67,12 +55,12 @@ export function getRatioFromCurrentCrop(dragStart, dragEnd) {
   const boxWidth = x1 - x0;
   const boxHeight = y1 - y0;
 
-  let aspectRatioString = null;
+  let aspectRatio = null;
 
   if (boxWidth > 0 && boxHeight > 0) {
     const ratio = (boxWidth / boxHeight).toFixed(3);
-    aspectRatioString = ratio;
+    aspectRatio = Number(ratio);
   }
 
-  return aspectRatioString;
+  return aspectRatio;
 }

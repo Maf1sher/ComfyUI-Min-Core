@@ -53,7 +53,6 @@ export const TEXT = {
 };
 
 export const TEXTCONTENT = {
-  aspectStringMsg: "Use values like 0.5 or 16:9",
   imageAreaInfoMsgRow1: "Out of sync, run Graph to get preview",
   imageAreaInfoMsgRow2: "Crop values reset on sync, so refresh first!",
   usageInstructionMsg: "Drag in the preview to select a crop area.",
