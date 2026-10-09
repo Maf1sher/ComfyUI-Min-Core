@@ -135,7 +135,7 @@ function buildEditorHtml(nodeId) {
                     </label>
                     <label class="mcore-ic-check">
                         <input data-role="show-frame" type="checkbox" checked>
-                        <span>Show source frame</span>
+                        <span>Show guides</span>
                     </label>
                     <label class="mcore-ic-check">
                         <input data-role="show-outside-background" type="checkbox" checked>
@@ -269,7 +269,7 @@ function drawPreview(state) {
     );
     context.restore();
 
-    if (state.showOutsideBackground) {
+    if (state.showOutsideBackground && state.showFrame) {
         context.save();
         context.fillStyle = "rgba(0, 0, 0, 0.5)";
         context.fillRect(0, 0, bounds.width, frameY);
