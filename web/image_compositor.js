@@ -477,6 +477,7 @@ function bindEditorEvents(state) {
             status.textContent = "Updating the node output…";
             await queueNodeExecution(state.node);
             status.textContent = "Queued. The editor preview updates when execution finishes.";
+            panel.close();
         } catch (error) {
             status.textContent = String(error);
             notify("error", "Image Compositor", String(error));

@@ -14,9 +14,9 @@ Click **Refresh Images** to run the node and reload the source and background
 previews; connected inputs, including the optional source mask, are resolved by
 the normal node execution. The node is also an execution target, so a normal
 workflow run evaluates it even when its output is not connected downstream.
-Click **Apply** to update the node output. Transform values are stored with the
-workflow; the guide-visibility and outside-background preferences are local to
-the browser.
+Click **Apply** to queue the updated node output and close the editor. Transform
+values are stored with the workflow; the guide-visibility and outside-background
+preferences are local to the browser.
 
 ## Inputs
 
