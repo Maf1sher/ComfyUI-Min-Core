@@ -15,6 +15,21 @@ import { getWidget } from "../utils/nodeUtils.js";
 export function handleOnExecuted(node, message) {
   const backendCropData = message?.crop_info?.[0] || null;
   const backendShouldResetCrop = backendCropData?.reset_crop_ui || false;
+  const backendAspectRatio = message?.aspect_ratio?.[0];
+  const aspectRatioInput = node.inputs?.find(
+    (input) => input.name === "aspect_ratio"
+  );
+
+  if (
+    node.properties.aspectLockEnabled &&
+    aspectRatioInput?.link != null &&
+    typeof backendAspectRatio === "number" &&
+    Number.isFinite(backendAspectRatio)
+  ) {
+    node.properties.aspectRatio = backendAspectRatio;
+    const aspectRatioWidget = getWidget(node, "aspect_ratio");
+    if (aspectRatioWidget) aspectRatioWidget.value = backendAspectRatio;
+  }
 
   const imageInfo = message?.images_custom?.[0];
   if (!imageInfo) {

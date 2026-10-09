@@ -206,6 +206,7 @@ class DragCrop(io.ComfyNode):
                 "subfolder": "",
                 "type": "temp"
             }] if original_filename else [],
+            "aspect_ratio": [aspect_ratio],
             "crop_info": [crop_payload]
         }
 

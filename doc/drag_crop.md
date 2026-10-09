@@ -21,6 +21,7 @@ This node is a port of the excellent [ComfyUI-Olm-DragCrop](https://github.com/o
 
 - `aspect_ratio`: Enter a decimal aspect ratio, such as `1.777` or `0.5`. Set it to `0` to disable the ratio.
 - `Aspect Ratio Lock`: Keep the crop selection at the entered ratio while dragging.
+- With the lock enabled, executing the node updates the widget to the value received from a connected `aspect_ratio` input.
 - `Set Ratio from Crop`: Replace the ratio with the current crop selection ratio.
 
 ## Outputs
