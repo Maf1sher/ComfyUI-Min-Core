@@ -359,17 +359,24 @@ function updateTransform(state, nextTransform, sync = true) {
     drawPreview(state);
 }
 
-function pointerInFrame(state, event) {
+function pointerInCanvas(state, event) {
     const bounds = state.canvas.getBoundingClientRect();
     const frame = state.frame;
     if (!frame) return null;
     const x = event.clientX - bounds.left;
     const y = event.clientY - bounds.top;
-    if (x < frame.x || x > frame.x + frame.width || y < frame.y || y > frame.y + frame.height) return null;
     return {
         x: (x - frame.x) / frame.scale,
         y: (y - frame.y) / frame.scale,
     };
+}
+
+function pointerInFrame(state, event) {
+    const pointer = pointerInCanvas(state, event);
+    if (!pointer || pointer.x < 0 || pointer.x > state.sourceWidth || pointer.y < 0 || pointer.y > state.sourceHeight) {
+        return null;
+    }
+    return pointer;
 }
 
 function zoomAtPointer(state, factor, pointer) {
@@ -480,7 +487,7 @@ function bindEditorEvents(state) {
     });
 
     canvas.addEventListener("pointerdown", (event) => {
-        if (event.button !== 0 || !pointerInFrame(state, event)) return;
+        if (event.button !== 0 || !pointerInCanvas(state, event)) return;
         event.preventDefault();
         canvas.setPointerCapture(event.pointerId);
         state.drag = {

@@ -7,9 +7,9 @@ background. The source image stays fixed and defines the output dimensions.
 The editor shows the source over the background. **Show guides** toggles the
 outline around the source frame and the dimming outside it. A separate checkbox
 controls whether background outside the frame is shown. These editor aids are
-not part of the output. Drag in the preview to move the background, use the
-mouse wheel to scale it around the pointer, or enter the current transform
-values in the editor.
+not part of the output. Drag anywhere in the preview to move the background;
+use the mouse wheel over the source frame to scale it around the pointer, or
+enter the current transform values in the editor.
 Click **Refresh Images** to run the node and reload the source and background
 previews; connected inputs, including the optional source mask, are resolved by
 the normal node execution. The node is also an execution target, so a normal
