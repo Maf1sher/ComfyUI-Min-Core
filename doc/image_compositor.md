@@ -5,15 +5,18 @@ editor from the node button or its context menu to reposition and scale the
 background. The source image stays fixed and defines the output dimensions.
 
 The editor shows the source over the background, with a toggleable outline around
-the full source-image frame. The outline is an editor aid and is not part of the
-output. Drag in the preview to move the background, use the mouse wheel to scale
-it around the pointer, or enter the current transform values in the editor.
+the full source-image frame. A checkbox controls whether background outside that
+frame is shown; when enabled, it is dimmed to make the active composition area
+clear. The outline and dimming are editor aids and are not part of the output.
+Drag in the preview to move the background, use the mouse wheel to scale it
+around the pointer, or enter the current transform values in the editor.
 Click **Refresh Images** to run the node and reload the source and background
 previews; connected inputs, including the optional source mask, are resolved by
 the normal node execution. The node is also an execution target, so a normal
 workflow run evaluates it even when its output is not connected downstream.
 Click **Apply** to update the node output. Transform values are stored with the
-workflow; the frame-visibility preference is local to the browser.
+workflow; the frame-visibility and outside-background preferences are local to
+the browser.
 
 ## Inputs
 

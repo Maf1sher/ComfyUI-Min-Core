@@ -4,6 +4,7 @@ import { api } from "/scripts/api.js";
 const NODE_TYPE = "MinCore_ImageCompositor";
 const STYLE_ID = "mincore-image-compositor-stylesheet";
 const FRAME_VISIBILITY_KEY = "mincore.imageCompositor.showFrame";
+const OUTSIDE_BACKGROUND_VISIBILITY_KEY = "mincore.imageCompositor.showOutsideBackground";
 
 function installStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -54,6 +55,22 @@ function readFrameVisibility() {
 function saveFrameVisibility(value) {
     try {
         localStorage.setItem(FRAME_VISIBILITY_KEY, String(value));
+    } catch (_error) {
+        // Keep the setting for this editor session if local storage is unavailable.
+    }
+}
+
+function readOutsideBackgroundVisibility() {
+    try {
+        return localStorage.getItem(OUTSIDE_BACKGROUND_VISIBILITY_KEY) !== "false";
+    } catch (_error) {
+        return true;
+    }
+}
+
+function saveOutsideBackgroundVisibility(value) {
+    try {
+        localStorage.setItem(OUTSIDE_BACKGROUND_VISIBILITY_KEY, String(value));
     } catch (_error) {
         // Keep the setting for this editor session if local storage is unavailable.
     }
@@ -119,6 +136,10 @@ function buildEditorHtml(nodeId) {
                     <label class="mcore-ic-check">
                         <input data-role="show-frame" type="checkbox" checked>
                         <span>Show source frame</span>
+                    </label>
+                    <label class="mcore-ic-check">
+                        <input data-role="show-outside-background" type="checkbox" checked>
+                        <span>Show background outside frame</span>
                     </label>
                     <p class="mcore-ic-help">Drag in the preview to move the background. Use the mouse wheel to zoom around the pointer.</p>
                     <div class="mcore-ic-actions">
@@ -234,9 +255,11 @@ function drawPreview(state) {
     const backgroundX = (state.sourceWidth - state.backgroundWidth * imageScale) / 2 + state.transform.x;
     const backgroundY = (state.sourceHeight - state.backgroundHeight * imageScale) / 2 + state.transform.y;
     context.save();
-    context.beginPath();
-    context.rect(frameX, frameY, frameWidth, frameHeight);
-    context.clip();
+    if (!state.showOutsideBackground) {
+        context.beginPath();
+        context.rect(frameX, frameY, frameWidth, frameHeight);
+        context.clip();
+    }
     context.drawImage(
         state.backgroundImage,
         frameX + backgroundX * fitScale,
@@ -244,8 +267,19 @@ function drawPreview(state) {
         state.backgroundWidth * imageScale * fitScale,
         state.backgroundHeight * imageScale * fitScale,
     );
-    context.drawImage(state.sourceImage, frameX, frameY, frameWidth, frameHeight);
     context.restore();
+
+    if (state.showOutsideBackground) {
+        context.save();
+        context.fillStyle = "rgba(0, 0, 0, 0.5)";
+        context.fillRect(0, 0, bounds.width, frameY);
+        context.fillRect(0, frameY + frameHeight, bounds.width, bounds.height - frameY - frameHeight);
+        context.fillRect(0, frameY, frameX, frameHeight);
+        context.fillRect(frameX + frameWidth, frameY, bounds.width - frameX - frameWidth, frameHeight);
+        context.restore();
+    }
+
+    context.drawImage(state.sourceImage, frameX, frameY, frameWidth, frameHeight);
 
     if (state.showFrame) {
         context.strokeStyle = "#e9eef7";
@@ -396,6 +430,12 @@ function bindEditorEvents(state) {
         saveFrameVisibility(state.showFrame);
         drawPreview(state);
     });
+    root.querySelector('[data-role="show-outside-background"]').checked = state.showOutsideBackground;
+    root.querySelector('[data-role="show-outside-background"]').addEventListener("change", (event) => {
+        state.showOutsideBackground = event.target.checked;
+        saveOutsideBackgroundVisibility(state.showOutsideBackground);
+        drawPreview(state);
+    });
     root.querySelector('[data-action="reset"]').addEventListener("click", () => {
         updateTransform(state, { x: 0, y: 0, scale: 1 });
         root.querySelector('[data-role="apply-status"]').textContent = "Transform reset. Apply to update the node output.";
@@ -532,6 +572,7 @@ function openEditor(node) {
         backgroundHeight: 0,
         transform: { x: 0, y: 0, scale: 1 },
         showFrame: readFrameVisibility(),
+        showOutsideBackground: readOutsideBackgroundVisibility(),
         previewRequestId: 0,
         resizeHandler: null,
         keydownHandler: null,
