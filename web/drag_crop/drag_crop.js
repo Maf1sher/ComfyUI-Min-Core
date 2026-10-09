@@ -1,5 +1,4 @@
 import { app } from "/scripts/app.js";
-import { showConfirmDialog } from "./ui/confirmDialog.js";
 import { handleDrawForeground } from "./core/render.js";
 
 import { getWidget, hideWidget, applyBox } from "./utils/nodeUtils.js";
@@ -8,8 +7,6 @@ import {
   DEFAULT_SIZE,
   TEXTCONTENT,
   DEFAULT_SNAP_VALUE,
-  colorOptions,
-  DEFAULT_COLOR,
   WIDGET_ROW_H,
 } from "./constants.js";
 
@@ -25,8 +22,6 @@ import {
   syncCropWidgetsFromProperties,
   updateBoxFromCropValues,
 } from "./core/cropModel.js";
-
-import { getRatioFromCurrentCrop } from "./core/aspectSnap.js";
 
 import { commitState } from "./core/commitState.js";
 
@@ -66,7 +61,6 @@ app.registerExtension({
         snapValue: DEFAULT_SNAP_VALUE,
         aspectRatio: 0,
         aspectLockEnabled: false,
-        infoDisplayEnabled: true,
       };
 
       for (const key in defaults) {
@@ -160,28 +154,6 @@ app.registerExtension({
         }
       );
 
-      node.addWidget(
-        "button",
-        TEXTCONTENT.setRatioFromCropWidget,
-        "set_ratio",
-        () => {
-          const message = TEXTCONTENT.setRatiofromCropDlg;
-          node.showConfirmDialog(message, () => {
-            const aspectRatio = getRatioFromCurrentCrop(
-              node.properties.dragStart,
-              node.properties.dragEnd
-            );
-            const ratioWidget = getWidget(node, TEXTCONTENT.aspectRatioWidget);
-            if (ratioWidget && aspectRatio !== null) {
-              ratioWidget.value = aspectRatio;
-              node.properties.aspectRatio = aspectRatio;
-              commitState(node);
-            }
-            node.setDirtyCanvas(true);
-          });
-        }
-      );
-
       const crop_left = getWidget(node, "crop_left");
       crop_left.callback = (value) => {
         node.properties.crop_left = value;
@@ -217,61 +189,6 @@ app.registerExtension({
         commitState(node);
         node.setDirtyCanvas(true);
       };
-
-      node.addWidget(
-        "button",
-        TEXTCONTENT.forceRefreshWidget,
-        "refresh",
-        () => {
-          node.forceUpdate();
-          commitState(node);
-          node.setDirtyCanvas(true);
-        }
-      );
-
-      node.infoToggle = node.addWidget(
-        "button",
-        node.getInfoToggleLabel(),
-        null,
-        () => {
-          node.properties.infoDisplayEnabled =
-            !node.properties.infoDisplayEnabled;
-          node.updateInfoToggleLabel();
-          commitState(node);
-          node.setDirtyCanvas(true);
-        }
-      );
-
-      const colorNames = colorOptions.map((o) => o.name);
-      const defaultColor = colorOptions.find((o) => o.name === DEFAULT_COLOR);
-      node.properties.box_color = defaultColor?.value || "#d5ff6b";
-
-      node.addWidget(
-        "combo",
-        TEXTCONTENT.boxColorWidget,
-        defaultColor?.name || DEFAULT_COLOR,
-        (value) => {
-          const selected = colorOptions.find((o) => o.name === value);
-          if (selected) {
-            node.properties.box_color = selected.value;
-            commitState(node);
-            node.setDirtyCanvas(true);
-          }
-        },
-        { values: colorNames }
-      );
-
-      node.addWidget("button", TEXTCONTENT.resetCropWidget, "reset", () => {
-        const message = TEXTCONTENT.resetCropDlg;
-        node.showConfirmDialog(message, () => {
-          const preview = getPreviewAreaCached(node);
-          resetCrop(node, preview);
-          commitState(node);
-          const cropCtx = getCropCtx(node);
-          applyBox(node, updateBoxFromCropValues(cropCtx, preview));
-          node.setDirtyCanvas(true);
-        });
-      });
     }
 
     const onNodeCreated = nodeType.prototype.onNodeCreated;
@@ -292,24 +209,6 @@ app.registerExtension({
       resetCrop(node, preview);
       commitState(node);
       node.setDirtyCanvas(true);
-    };
-
-    nodeType.prototype.showConfirmDialog = function (message, callback) {
-      showConfirmDialog(message, (confirmed) => {
-        if (confirmed) callback();
-      });
-    };
-
-    nodeType.prototype.getInfoToggleLabel = function () {
-      const node = this;
-      return node.properties.infoDisplayEnabled
-        ? TEXTCONTENT.infoTextToggleWidgetHide
-        : TEXTCONTENT.infoTextToggleWidgetShow;
-    };
-
-    nodeType.prototype.updateInfoToggleLabel = function () {
-      const node = this;
-      if (node.infoToggle) node.infoToggle.name = node.getInfoToggleLabel();
     };
 
     nodeType.prototype.forceUpdate = function () {

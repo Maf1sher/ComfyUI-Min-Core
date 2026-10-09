@@ -1,12 +1,9 @@
-import { ColorUtils } from "../utils/colorUtils.js";
 import { MathUtils } from "../utils/mathUtils.js";
 import { GRAPHICS, TEXT, TEXTCONTENT, LAYOUT } from "../constants.js";
 
 export function drawCropBox(
   ctx,
   nodeCtx,
-  box_color,
-  infoDisplayEnabled,
   previewArea,
   clippedX,
   clippedY,
@@ -20,28 +17,26 @@ export function drawCropBox(
   ctx.rect(clippedX, clippedY, clippedW, clippedH);
   ctx.fill("evenodd");
 
-  ctx.strokeStyle = box_color;
+  ctx.strokeStyle = GRAPHICS.cropBox;
   ctx.lineWidth = GRAPHICS.cropLineWidth;
   ctx.strokeRect(clippedX, clippedY, clippedW, clippedH);
 
-  ctx.fillStyle = box_color;
+  ctx.fillStyle = GRAPHICS.cropBox;
   ctx.font = TEXT.cropBoxFont;
   ctx.textAlign = "center";
 
   const cropDisplayValues = updateCropDisplayValues(nodeCtx, { round: true });
 
-  if (infoDisplayEnabled && cropDisplayValues) {
-    ctx.fillText(
-      `${cropDisplayValues.percentWidth} × ${cropDisplayValues.percentHeight} %`,
-      clippedX + clippedW / 2,
-      clippedY + clippedH / 2 + 6
-    );
-    ctx.fillText(
-      `${cropDisplayValues.width} × ${cropDisplayValues.height} px`,
-      clippedX + clippedW / 2,
-      clippedY + clippedH / 2 + 20
-    );
-  }
+  ctx.fillText(
+    `${cropDisplayValues.percentWidth} × ${cropDisplayValues.percentHeight} %`,
+    clippedX + clippedW / 2,
+    clippedY + clippedH / 2 + 6
+  );
+  ctx.fillText(
+    `${cropDisplayValues.width} × ${cropDisplayValues.height} px`,
+    clippedX + clippedW / 2,
+    clippedY + clippedH / 2 + 20
+  );
 
   const handleSize = GRAPHICS.handleSize;
   const half = handleSize / 2;
@@ -52,8 +47,8 @@ export function drawCropBox(
     [clippedX + clippedW, clippedY + clippedH],
   ];
 
-  ctx.fillStyle = ColorUtils.darken(box_color, GRAPHICS.darkenFactor);
-  ctx.strokeStyle = box_color;
+  ctx.fillStyle = GRAPHICS.cropHandleFill;
+  ctx.strokeStyle = GRAPHICS.cropBox;
   ctx.lineWidth = GRAPHICS.handleLineWidth;
 
   handlePositions.forEach(([hx, hy]) => {
@@ -70,7 +65,7 @@ export function drawCropBox(
     [clippedX + clippedW, clippedY + clippedH / 2],
   ];
 
-  ctx.fillStyle = ColorUtils.darken(box_color, GRAPHICS.darkenFactor);
+  ctx.fillStyle = GRAPHICS.cropHandleFill;
   edgePositions.forEach(([hx, hy]) => {
     ctx.beginPath();
     ctx.rect(hx - half, hy - half, handleSize, handleSize);
@@ -134,8 +129,6 @@ function drawCropIfAny(ctx, node, nodeCtx, preview) {
   drawCropBox(
     ctx,
     nodeCtx,
-    node.properties.box_color,
-    node.properties.infoDisplayEnabled,
     preview,
     crop.clippedX,
     crop.clippedY,

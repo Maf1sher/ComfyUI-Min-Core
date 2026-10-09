@@ -45,22 +45,3 @@ export function getLockedAspectRatio(aspectRatio) {
 
   return aspectRatio;
 }
-
-export function getRatioFromCurrentCrop(dragStart, dragEnd) {
-  if (!dragStart || !dragEnd) return;
-
-  const [x0, y0] = dragStart;
-  const [x1, y1] = dragEnd;
-
-  const boxWidth = x1 - x0;
-  const boxHeight = y1 - y0;
-
-  let aspectRatio = null;
-
-  if (boxWidth > 0 && boxHeight > 0) {
-    const ratio = (boxWidth / boxHeight).toFixed(3);
-    aspectRatio = Number(ratio);
-  }
-
-  return aspectRatio;
-}

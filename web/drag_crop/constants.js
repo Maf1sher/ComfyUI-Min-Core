@@ -1,22 +1,7 @@
 export const DEFAULT_SIZE = 512;
 export const MIN_CROP_DIMENSION = 1;
 export const DEFAULT_SNAP_VALUE = "none";
-export const DEFAULT_COLOR = "Lime";
 export const WIDGET_ROW_H = 25;
-
-export const colorOptions = [
-  { name: "Lime", value: "#d5ff6b" },
-  { name: "Grey", value: "##999999" },
-  { name: "White", value: "#ffffff" },
-  { name: "Black", value: "#000000" },
-  { name: "Red", value: "#ff3333" },
-  { name: "Green", value: "#00ff00" },
-  { name: "Blue", value: "#3399ff" },
-  { name: "Yellow", value: "#ffff00" },
-  { name: "Magenta", value: "#ff00ff" },
-  { name: "Cyan", value: "#00ffff" },
-  { name: "Hot pink", value: "#fa69af" },
-];
 
 export const LAYOUT = {
   PADDING_X: 40,
@@ -34,7 +19,8 @@ export const LAYOUT = {
 export const GRAPHICS = {
   handleSize: 4,
   handleLineWidth: 1,
-  darkenFactor: 80,
+  cropBox: "#d5ff6b",
+  cropHandleFill: "#85af1b",
   border: "#555",
   borderLineWidth: 1,
   colorDim: "#777",
@@ -54,18 +40,9 @@ export const TEXT = {
 
 export const TEXTCONTENT = {
   imageAreaInfoMsgRow1: "Out of sync, run Graph to get preview",
-  imageAreaInfoMsgRow2: "Crop values reset on sync, so refresh first!",
+  imageAreaInfoMsgRow2: "Crop values reset on sync; run the graph before editing.",
   usageInstructionMsg: "Drag in the preview to select a crop area.",
-  setRatiofromCropDlg:
-    "⚠️ Use the current crop box dimensions to set the aspect ratio?",
-  resetCropDlg: "⚠️ Are you sure you want to reset the crop?",
   snapToWidget: "Snap to",
   aspectRatioWidget: "aspect_ratio",
   aspectRatioLockWidget: "Aspect Ratio Lock",
-  setRatioFromCropWidget: "Set Ratio from Crop",
-  forceRefreshWidget: "Force Refresh",
-  infoTextToggleWidgetHide: "Hide Info Text",
-  infoTextToggleWidgetShow: "Show Info Text",
-  boxColorWidget: "Box Color",
-  resetCropWidget: "Reset Crop",
 };
