@@ -27,7 +27,11 @@ class DragCrop(io.ComfyNode):
             inputs=[
                 io.String.Input("drawing_version", default="init", socketless=True),
                 io.Float.Input(
-                    "aspect_ratio", default=0.0, min=0.0, step=0.001, socketless=True
+                    "aspect_ratio",
+                    default=0.0,
+                    min=0.0,
+                    step=0.001,
+                    socketless=False,
                 ),
                 io.Image.Input("image"),
                 io.Int.Input("crop_left", default=0, min=0, max=8192, socketless=True),
@@ -65,7 +69,6 @@ class DragCrop(io.ComfyNode):
         mask: torch.Tensor = None,
     ) -> io.NodeOutput:
         node_id = cls.hidden.unique_id
-        
         debug_print("=" * 60)
         print(f"[DragCropMin] Node {node_id} executed (Backend)")
 

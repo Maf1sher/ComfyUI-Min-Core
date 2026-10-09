@@ -1,7 +1,12 @@
 import { app } from "/scripts/app.js";
 import { handleDrawForeground } from "./core/render.js";
 
-import { getWidget, hideWidget, applyBox } from "./utils/nodeUtils.js";
+import {
+  getWidget,
+  hideWidget,
+  applyBox,
+  removeNodeInputs,
+} from "./utils/nodeUtils.js";
 
 import {
   DEFAULT_SIZE,
@@ -242,14 +247,22 @@ app.registerExtension({
       if (boxPatch) Object.assign(node.properties, boxPatch);
     };
 
-    nodeType.prototype.onConfigure = function (o) {
-      const node = this;
-      handleOnConfigure(node);
+    const onConfigure = nodeType.prototype.onConfigure;
+    nodeType.prototype.onConfigure = function () {
+      onConfigure?.apply(this, arguments);
+      handleOnConfigure(this);
     };
 
+    const onAdded = nodeType.prototype.onAdded;
     nodeType.prototype.onAdded = function () {
-      const node = this;
-      handleOnAdded(node);
+      onAdded?.apply(this, arguments);
+      handleOnAdded(this);
+    };
+
+    const onGraphConfigured = nodeType.prototype.onGraphConfigured;
+    nodeType.prototype.onGraphConfigured = function () {
+      onGraphConfigured?.apply(this, arguments);
+      removeNodeInputs(this);
     };
 
     nodeType.prototype.onExecuted = function (message) {
@@ -257,15 +270,16 @@ app.registerExtension({
       handleOnExecuted(node, message);
     };
 
+    const onConnectionsChange = nodeType.prototype.onConnectionsChange;
     nodeType.prototype.onConnectionsChange = function (
       type,
       index,
       connected,
       link_info
     ) {
-      const node = this;
+      onConnectionsChange?.apply(this, arguments);
       if (type === LiteGraph.INPUT && link_info?.type === "IMAGE") {
-        node.setDirtyCanvas(true);
+        this.setDirtyCanvas(true);
       }
     };
 

@@ -5,12 +5,9 @@ import {
   handleOnMouseUp,
 } from "../core/dragController.js";
 
-import { removeNodeInputs } from "../utils/nodeUtils.js";
 import { getPreviewAreaCached } from "../ui/nodeLayout.js";
 
 export function handleOnAdded(node) {
-  removeNodeInputs(node);
-
   const originalOnMouseDown = node.onMouseDown;
   const originalOnMouseMove = node.onMouseMove;
   const originalOnMouseUp = node.onMouseUp;
