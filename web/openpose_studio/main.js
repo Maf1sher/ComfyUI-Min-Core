@@ -570,7 +570,6 @@ class OpenPosePanel {
         // Presets (loaded from JSON)
         this.presetsLoading = true;
         this.presets = [];
-        this.unavailablePoseLibraries = [];
         this.presetBaseWidth = DEFAULT_CANVAS_WIDTH;
         this.presetBaseHeight = DEFAULT_CANVAS_HEIGHT;
 
@@ -1211,7 +1210,6 @@ class OpenPosePanel {
 		const primaryBg = resolved.primaryBg || hoverBg || border;
 		const primaryHover = resolved.primaryHover || primaryBg;
 		const primaryText = isColorLight(primaryBg) ? "#222222" : "#ffffff";
-		const gallerySelectionBg = resolved.isLight ? "#b9e7f5" : "#164e63";
 		const statusInfo = resolved.primaryBg || "#cbd5f5";
 		const statusSuccess = resolved.isLight ? "#15803d" : "#86efac";
 		const statusWarn = resolved.isLight ? "#b45309" : "#facc15";
@@ -1254,7 +1252,6 @@ class OpenPosePanel {
 		this.container.style.setProperty("--openpose-primary-bg", primaryBg);
 		this.container.style.setProperty("--openpose-primary-hover-bg", primaryHover);
 		this.container.style.setProperty("--openpose-primary-text", primaryText);
-		this.container.style.setProperty("--openpose-gallery-selection-bg", gallerySelectionBg);
 		this.container.style.setProperty("--openpose-link", primaryBg);
 		this.container.style.setProperty("--openpose-error", error);
 		this.container.style.setProperty("--openpose-status-info", statusInfo);
@@ -1829,9 +1826,7 @@ class OpenPosePanel {
 
 	async loadPresetsFromJson() {
 		this.presetsLoading = true;
-		this.unavailablePoseLibraries = [];
 		this.renderPresetPreviewLoading();
-		this.moduleManager?.notifyPresetsLoadStart?.();
 		const defaultPreset = {
 			id: DEFAULT_POSE_COCO18.id,
 			label: DEFAULT_POSE_COCO18.label,
@@ -1840,7 +1835,7 @@ class OpenPosePanel {
 			canvas_height: DEFAULT_CANVAS_HEIGHT
 		};
 		// Mark built-in preset as plugin-provided
-		defaultPreset.group = t("gallery.group.builtin");
+		defaultPreset.group = t("pose_library.group.builtin");
 
 		// Built-in defaults are defined statically above; no runtime JSON load required
 		try {
@@ -1850,9 +1845,6 @@ class OpenPosePanel {
 				throw new Error(`Failed to list pose files: ${listResponse.status}`);
 			}
 			const listPayload = await listResponse.json();
-			this.unavailablePoseLibraries = Array.isArray(listPayload.unavailable)
-				? listPayload.unavailable
-				: [];
 			const files = Array.isArray(listPayload.entries)
 				? listPayload.entries
 				: (Array.isArray(listPayload.files) ? listPayload.files : []);
@@ -1871,37 +1863,20 @@ class OpenPosePanel {
 				const filename = typeof fileEntry === "string" ? fileEntry : fileEntry.path;
 				const source = typeof fileEntry === "string" ? 0 : Number(fileEntry.source) || 0;
 				const library = typeof fileEntry === "string" ? "poses" : (fileEntry.library || "poses");
-				const customLibrary = typeof fileEntry !== "string" && fileEntry.builtin === false;
 				const slashIndex = filename ? filename.lastIndexOf("/") : -1;
 				const directory = typeof fileEntry === "string"
 					? (slashIndex === -1 ? "" : filename.substring(0, slashIndex))
 					: (fileEntry.directory || "");
 				const sourceFile = `${source}:${filename}`;
-				const galleryGroupKey = directory ? `${source}:${directory}` : sourceFile;
-				const galleryGroupTitle = directory ? `${library}/${directory}` : `${library}/${filename}`;
 				const displayFilename = `${library}/${filename}`;
 				const encodedFilename = filename
 					.split("/")
 					.map((part) => encodeURIComponent(part))
 					.join("/");
-				const fileContext = {
-					filename,
-					sourceFile,
-					library,
-					customLibrary,
-					directory,
-					galleryGroupKey,
-					galleryGroupTitle,
-					displayFilename
-				};
 				try {
 					const fileResponse = await fetch(`${POSES_FILE_URL}${encodedFilename}?source=${source}`, { cache: "no-store" });
 					if (!fileResponse.ok) {
 						console.warn(`[OpenPose Studio] Failed to load ${displayFilename}`);
-						this.moduleManager?.notifyPresetFileError?.({
-							...fileContext,
-							reason: t("gallery.error.no_poses_in_file")
-						});
 						continue;
 					}
 
@@ -1910,30 +1885,22 @@ class OpenPosePanel {
 						payload = await fileResponse.json();
 					} catch (parseError) {
 						console.warn(`[OpenPose Studio] Invalid JSON in ${displayFilename}:`, parseError);
-						this.moduleManager?.notifyPresetFileError?.({
-							...fileContext,
-							reason: t("gallery.error.invalid_json")
-						});
 						continue;
 					}
 
 					const normalized = normalizePresetData(payload, filename);
 					if (!normalized || !normalized.presets || normalized.presets.length === 0) {
-						let reason = t("gallery.error.unsupported_format");
+						let reason = "unsupported format";
 						if (normalized && normalized.presets && normalized.presets.length === 0) {
-							reason = t("gallery.error.empty_collection");
+							reason = "empty collection";
 						} else if (Array.isArray(payload.people) || Array.isArray(payload.keypoints)) {
-							reason = t("gallery.error.invalid_keypoints");
+							reason = "invalid keypoints";
 						} else if (payload && typeof payload === "object" && Object.keys(payload).length > 0) {
-							reason = t("gallery.error.no_valid_poses");
+							reason = "no valid poses";
 						}
-						this.moduleManager?.notifyPresetFileError?.({ ...fileContext, reason });
 						console.warn(`[OpenPose Studio] Invalid preset file: ${displayFilename} (${reason})`);
 						continue;
 					}
-
-					const fileInfo = { ...fileContext, payload, normalized };
-					this.moduleManager?.notifyPresetFileLoaded?.(fileInfo);
 
 					// Use first valid file's canvas size as base
 					if (firstFile) {
@@ -1944,7 +1911,7 @@ class OpenPosePanel {
 
 					let group;
 					if (directory) {
-						group = galleryGroupTitle.replace(/[_-]/g, " ");
+						group = `${library}/${directory}`.replace(/[_-]/g, " ");
 					} else {
 						const baseName = filename.replace(/\.json$/i, "").replace(/[_-]/g, " ");
 						group = normalized.format === "dictionary"
@@ -1961,11 +1928,6 @@ class OpenPosePanel {
 							label: preset.label,
 							group,
 							sourceFile,
-							library,
-							customLibrary,
-							galleryGroupKey,
-							galleryGroupTitle,
-							displayFilename,
 							keypoints: cloneKeypoints(preset.keypoints),
 							faceKeypoints: Array.isArray(preset.faceKeypoints)
 								? preset.faceKeypoints.map((group) => (
@@ -1984,18 +1946,12 @@ class OpenPosePanel {
 								: null,
 							canvas_width: Number(preset.canvas_width) || Number(preset.width) || normalized.baseWidth,
 							canvas_height: Number(preset.canvas_height) || Number(preset.height) || normalized.baseHeight,
-							tags: preset.tags || "",
 							validationError  // Track validation error if any
 						};
-						this.moduleManager?.decoratePreset?.(presetEntry, fileInfo);
 						allPresets.push(presetEntry);
 					}
 				} catch (fileError) {
 					console.warn(`[OpenPose Studio] Error loading ${displayFilename}:`, fileError);
-					this.moduleManager?.notifyPresetFileError?.({
-						...fileContext,
-						reason: t("gallery.error.failed_process_file")
-					});
 				}
 			}
 
@@ -2016,7 +1972,6 @@ class OpenPosePanel {
             this.presetSelect.disabled = false;
             this.populatePresetSelect();
             this.renderPresetPreview(this.presetSelect?.value);
-			this.moduleManager?.notifyPresetsLoaded?.({ presets: this.presets });
         } catch (error) {
             this.presets = [defaultPreset];
             this.presetBaseWidth = DEFAULT_CANVAS_WIDTH;
@@ -2025,7 +1980,6 @@ class OpenPosePanel {
             this.presetSelect.disabled = false;
             this.populatePresetSelect();
             this.renderPresetPreview(this.presetSelect?.value);
-			this.moduleManager?.notifyPresetsLoaded?.({ presets: this.presets, error });
             console.warn("[OpenPose Studio] Preset load failed, using defaults.", error);
         }
 	}
@@ -2387,10 +2341,6 @@ app.registerExtension({
             node._mincoreBgSize = typeof bgSize === "string" ? bgSize : "";
 
             const poseJson = detail.output?.pose_json?.[0];
-            const poseTags = detail.output?.pose_tags?.[0];
-            if (typeof poseTags === "string") {
-                node.properties.poseTags = poseTags;
-            }
             if (typeof poseJson !== "string" || poseJson.trim().length === 0) {
                 // No pose payload, but background may still need updating.
                 if (node.openPosePanel && typeof node.openPosePanel.updateNodeInputBackground === "function") {
@@ -2444,8 +2394,8 @@ app.registerExtension({
                 if (!this.properties) {
                     this.properties = {};
                     this.properties.savedPose = "";
-                    this.properties.poseTags = "";
                 }
+                delete this.properties.poseTags;
 
                 // Ephemeral editor background state (set on execution, not serialized).
                 this._mincoreBgUuid = "";
@@ -2455,9 +2405,6 @@ app.registerExtension({
 
                 // Find the pose_json widget (created by Python INPUT_TYPES)
                 this.jsonWidget = this.widgets.find(w => w.name === "pose_json");
-
-                // Find the pose_tags widget (created by Python INPUT_TYPES)
-                this.tagsWidget = this.widgets.find(w => w.name === "pose_tags");
 
                 this.openOpenPoseEditor = () => {
                     const graphCanvas = LiteGraph.LGraphCanvas.active_canvas
@@ -2607,19 +2554,6 @@ app.registerExtension({
                     };
                 }
 
-                // In Nodes 2.0, inline widget edits call widget.callback directly.
-                // Patch the callback so the current pose_tags value is always synced
-                // into node.properties.poseTags (used to pre-fill the Save dialog).
-                if (this.tagsWidget) {
-                    const origCallback = this.tagsWidget.callback;
-                    const node = this;
-                    this.tagsWidget.callback = function(value) {
-                        if (origCallback) origCallback.call(this, value);
-                        if (!node.properties) node.properties = {};
-                        node.properties.poseTags = (typeof value === "string") ? value : "";
-                    };
-                }
-
                 // Sync incoming connected Pose JSON back into widget state and preview
                 // after each server-side execution. Handled globally in the extension
                 // setup() via api.addEventListener("executed", ...) to avoid relying
@@ -2674,11 +2608,6 @@ app.registerExtension({
                     if (this.updatePreview) {
                         this.updatePreview();
                     }
-                } else if (name === "pose_tags") {
-                    if (!this.properties) {
-                        this.properties = {};
-                    }
-                    this.properties.poseTags = (typeof value === "string") ? value : "";
                 }
                 if (onWidgetChanged) {
                     return onWidgetChanged.apply(this, arguments);

@@ -6,8 +6,8 @@
 
 OpenPose Studio Min is a pose editor + renderer node for ComfyUI, ported from the
 [ComfyUI-OpenPose-Studio](https://github.com/andreszs/comfyui-openpose-studio)
-pack by andreszs. It provides a full in-browser pose editor (canvas, presets,
-gallery, merger, render style, localization) and converts the edited pose into:
+pack by andreszs. It provides an in-browser pose editor with preset loading and
+render-style controls, and converts the edited pose into:
 
 - a rendered **IMAGE** (body skeleton / hands / face)
 - the filtered **JSON** that was edited
@@ -37,21 +37,17 @@ gallery, merger, render style, localization) and converts the edited pose into:
 
 ### Editor interface
 
-![OpenPose Studio Min editor interface](img/openpose_studio_ui.png)
-
 The editor panel is a full-window overlay divided into tabs:
 
 - **Pose Editor** — the main canvas plus the left control sidebar.
-- **Gallery** — browse the bundled pose library and insert poses.
-- **Poses Merger** — merge multiple pose JSON files into one canvas.
 - **Render** — adjust the runtime render style (line width, keypoint radius,
   colors for body / hands / face).
 
 The **Pose Editor** tab is laid out as follows:
 
 - **Left sidebar:**
-  - **Preset** — dropdown with the bundled presets, prev/next/reload buttons and
-    a live preview thumbnail.
+  - **Preset** — dropdown with bundled and configured-library presets,
+    prev/next/reload buttons and a live preview thumbnail.
   - **Action row** — add a pose (**+**), remove the selected pose (**−**), clear
     the canvas, undo the last edit.
   - **JSON pose file** — **Load** / **Save** buttons to import/export pose JSON.
@@ -100,9 +96,6 @@ The **Pose Editor** tab is laid out as follows:
 - **render_face** (Boolean, default: True) — Whether to draw face keypoints.
 - **pose_keypoint** (POSE_KEYPOINT, optional) — When connected, overrides the
   widget value.
-- **pose_tags** (STRING, optional) — Comma-separated tags describing the pose
-  (e.g. `sitting, japanese, indoor`). Passed to the editor so they pre-fill the
-  **Save to Gallery** dialog. Only metadata; it does not affect rendering.
 - **areas** (CONDITIONING_AREAS, optional) — Conditioning area data shown as an
   overlay in the editor canvas (used with Conditioning Pipeline nodes).
 - **background_image** (IMAGE, optional) — When connected, the image is shown as
@@ -155,37 +148,16 @@ the UI as a read-only multiline display widget.
 
 None (output node).
 
-## Pose library
+## Pose presets
 
 The bundled `poses/` directory ships with ~40 preset JSON files organized into
 categories (`misc/`, `dev/`). Additional pose libraries can be added to ComfyUI
-via the `mincore_openpose_poses` model folder key. The editor's Gallery and
-preset dropdown load from these files through the `/mincore/openpose/poses` REST
-endpoint.
+via the `mincore_openpose_poses` model folder key. The **Preset** selector loads
+poses from these folders for use in the editor.
 
-The shipped `poses/` directory is read-only. Poses saved from the editor are
-written to `input/mincore/user_poses/` under ComfyUI's input directory, so they
-survive plugin updates and reinstalls.
-
-## Save to Gallery
-
-The **Save to Gallery** button in the **JSON pose file** section writes the
-current canvas into the pose library so it shows up in the Gallery and the
-preset dropdown:
-
-1. A dialog asks for a **name** (pre-filled with an auto-generated
-   `saved-YYYYMMDD-HHMMSS` value; leave empty to keep the auto name) and
-   **tags** (pre-filled from the `pose_tags` input).
-2. The pose is sent to `POST /mincore/openpose/poses/save`, which adds a
-   top-level `metadata` object (`{"name": ..., "tags": ...}`) and writes the
-   file to `input/mincore/user_poses/saved/` in ComfyUI's input directory.
-3. Filename collisions get a numeric suffix (`-2`, `-3`, ...) instead of being
-   overwritten; the name is sanitized to safe filesystem characters.
-4. On success the Gallery reloads and the saved pose appears under the `saved`
-   group with its tags shown in the details panel.
-
-Tags are stored as plain comma-separated text in the JSON `metadata` block and
-are also searched by the Gallery filter.
+The shipped `poses/` directory is read-only. Existing JSON files in
+`input/mincore/user_poses/` remain available through the preset selector; this
+node no longer provides controls to save or delete pose-library files.
 
 ## Render style
 

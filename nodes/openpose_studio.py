@@ -1,18 +1,16 @@
 """
 OpenPose Studio Min — pose editor node and renderer.
 
-Port of ComfyUI-OpenPose-Studio (andreszs) for the Min-Core pack.  Renders
-pose JSON from the built-in canvas editor into an IMAGE, returns the filtered
-JSON, and converts the data into POSE_KEYPOINT format for comfyui_controlnet_aux
-downstream nodes.  Also provides the pose library REST API, browser-local render
-style sync, and the Show String helper output node.
+Port of ComfyUI-OpenPose-Studio (andreszs) for the Min-Core pack. Renders pose
+JSON from the built-in canvas editor into an IMAGE, returns the filtered JSON,
+and converts the data into POSE_KEYPOINT format for comfyui_controlnet_aux
+downstream nodes. Also provides read-only pose preset endpoints, browser-local
+render style sync, and the Show String helper output node.
 """
 
 import json
 import math
 import os
-import re
-import time
 import uuid
 from io import BytesIO
 
@@ -30,10 +28,9 @@ from server import PromptServer
 
 _PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Shipped pose library lives inside the package (read-only for saving).
+# Shipped pose presets live inside the package.
 POSES_DIR = os.path.join(_PLUGIN_DIR, "poses")
-# User-saved poses go to ComfyUI's input directory so they survive plugin
-# updates/reinstalls (same pattern as mask_painter_latch).
+# Keep existing user pose files available to the preset selector.
 USER_POSES_DIR = os.path.join(
     folder_paths.get_input_directory(), "mincore", "user_poses"
 )
@@ -52,7 +49,6 @@ _TOML_PATH = os.path.join(_PLUGIN_DIR, "pyproject.toml")
 _FALLBACK_NAME = "comfyui-min-core"
 _FALLBACK_VERSION = "unknown"
 _warned_inaccessible_pose_paths = set()
-_inaccessible_pose_paths = {}
 
 folder_paths.add_model_folder_path(POSES_FOLDER_KEY, POSES_DIR, is_default=True)
 folder_paths.add_model_folder_path(POSES_FOLDER_KEY, USER_POSES_DIR)
@@ -1119,7 +1115,6 @@ def get_pose_roots():
     roots = []
     seen = set()
     label_counts = {}
-    inaccessible_paths = {}
     builtin_path = os.path.normcase(os.path.realpath(POSES_DIR))
 
     for directory in folder_paths.get_folder_paths(POSES_FOLDER_KEY):
@@ -1130,7 +1125,6 @@ def get_pose_roots():
             if path not in _warned_inaccessible_pose_paths:
                 print(f"\033[93m[openpose-studio-min] WARNING: Could not load pose library '{path}': {error}\033[0m")
                 _warned_inaccessible_pose_paths.add(path)
-            inaccessible_paths[path] = str(error)
             continue
         _warned_inaccessible_pose_paths.discard(path)
         normalized_directory = os.path.normcase(real_directory)
@@ -1156,8 +1150,6 @@ def get_pose_roots():
             "builtin": normalized_directory == builtin_path,
         })
 
-    _inaccessible_pose_paths.clear()
-    _inaccessible_pose_paths.update(inaccessible_paths)
     return roots
 
 
@@ -1267,129 +1259,11 @@ async def get_background_image(request):
 
 
 @routes.get("/mincore/openpose/poses")
-async def list_poses(request):
+async def list_poses(_request):
     """List available pose files."""
     entries = get_pose_files()
     legacy_files = [entry["path"] for entry in entries if entry["builtin"]]
-    unavailable = [
-        {"path": path, "reason": reason}
-        for path, reason in _inaccessible_pose_paths.items()
-    ]
-    return web.json_response({"files": legacy_files, "entries": entries, "unavailable": unavailable})
-
-
-def _sanitize_pose_filename(name: str) -> str:
-    """Sanitize a user-supplied pose name into a safe basename (no extension)."""
-    cleaned = name.strip()
-    cleaned = re.sub(r"[^\w\- ]+", "", cleaned, flags=re.UNICODE)
-    cleaned = re.sub(r"[_\s]+", "-", cleaned).strip(" -_")
-    return cleaned
-
-
-def _save_pose_to_library(pose: dict, name: str) -> str:
-    """Write a pose to the user pose library, returning the relative path.
-
-    Saved poses are stored under ComfyUI's input directory
-    (``input/mincore/user_poses/saved/``) so they persist across plugin updates.
-    Colliding filenames get a numeric suffix (-2, -3, ...) before .json.
-    """
-    safe_name = _sanitize_pose_filename(name)
-    if not safe_name:
-        safe_name = f"saved-{time.strftime('%H%M%S')}"
-
-    saved_dir = os.path.join(USER_POSES_DIR, "saved")
-    os.makedirs(saved_dir, exist_ok=True)
-
-    candidate = safe_name
-    index = 2
-    while os.path.exists(os.path.join(saved_dir, f"{candidate}.json")):
-        candidate = f"{safe_name}-{index}"
-        index += 1
-
-    filename = f"{candidate}.json"
-    full_path = os.path.join(saved_dir, filename)
-    with open(full_path, "w", encoding="utf-8") as fh:
-        json.dump(pose, fh, indent=2, ensure_ascii=False)
-
-    return f"saved/{filename}"
-
-
-@routes.post("/mincore/openpose/poses/save")
-async def save_pose(request):
-    """Save a pose (with optional name and tags) into the pose library."""
-    try:
-        payload = await request.json()
-    except Exception:
-        return web.json_response({"error": "Invalid JSON"}, status=400)
-
-    if not isinstance(payload, dict):
-        return web.json_response({"error": "Invalid payload"}, status=400)
-
-    pose_json = payload.get("pose_json", "")
-    if isinstance(pose_json, dict):
-        pose = pose_json
-    elif isinstance(pose_json, str) and pose_json.strip():
-        try:
-            pose = json.loads(pose_json)
-        except Exception:
-            return web.json_response({"error": "Invalid pose JSON"}, status=400)
-    else:
-        return web.json_response({"error": "Missing pose_json"}, status=400)
-
-    if not isinstance(pose, dict):
-        return web.json_response({"error": "Invalid pose JSON"}, status=400)
-
-    name = str(payload.get("name", "")).strip()[:120]
-    tags = str(payload.get("tags", "")).strip()[:1000]
-
-    pose = dict(pose)
-    pose["metadata"] = {"name": name, "tags": tags}
-
-    try:
-        relative_path = _save_pose_to_library(pose, name)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-    return web.json_response({"ok": True, "path": relative_path})
-
-
-@routes.delete("/mincore/openpose/poses/{source_id}/{filepath:.*}")
-async def delete_pose(request):
-    """Delete a pose file from a user-writable pose library."""
-    try:
-        source_id = int(request.match_info.get("source_id", "-1"))
-    except (TypeError, ValueError):
-        return web.json_response({"error": "Invalid source"}, status=400)
-
-    sources = {source["id"]: source for source in get_pose_roots()}
-    source = sources.get(source_id)
-    if source is None:
-        return web.json_response({"error": "Unknown source"}, status=404)
-
-    if source.get("builtin"):
-        return web.json_response({"error": "Cannot delete builtin poses"}, status=403)
-
-    filepath = request.match_info.get("filepath", "")
-    if not filepath.lower().endswith(".json"):
-        return web.json_response({"error": "Invalid file type"}, status=400)
-
-    normalized_path = filepath.replace("/", os.sep).replace("\\", os.sep)
-    root_dir = source["path"]
-    full_path = os.path.realpath(os.path.join(root_dir, normalized_path))
-
-    # Verify the resolved path is still within its configured library root.
-    if not folder_paths.is_within_directory(root_dir, full_path):
-        return web.json_response({"error": "Invalid path"}, status=400)
-
-    if not os.path.isfile(full_path):
-        return web.json_response({"error": "File not found"}, status=404)
-
-    try:
-        os.remove(full_path)
-    except OSError as e:
-        return web.json_response({"error": f"Failed to delete: {e}"}, status=500)
-
-    return web.json_response({"ok": True})
+    return web.json_response({"files": legacy_files, "entries": entries})
 
 
 @routes.post("/mincore/openpose/render_style")
@@ -1507,19 +1381,17 @@ async def openpose_editor_version(request):
 # ── UI output ────────────────────────────────────────────────────────────────
 
 class _OpenPoseStudioUI(_UIOutput):
-    def __init__(self, pose_json: str, background_image_uuid: str = "", background_image_size: str = "", pose_tags: str = ""):
+    def __init__(self, pose_json: str, background_image_uuid: str = "", background_image_size: str = ""):
         super().__init__()
         self.pose_json = pose_json
         self.background_image_uuid = background_image_uuid
         self.background_image_size = background_image_size
-        self.pose_tags = pose_tags
 
     def as_dict(self) -> dict:
         return {
             "pose_json": [self.pose_json],
             "background_image_uuid": [self.background_image_uuid],
             "background_image_size": [self.background_image_size],
-            "pose_tags": [self.pose_tags],
         }
 
 
@@ -1568,13 +1440,6 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
                     optional=True,
                     tooltip="Optional DWPose POSE_KEYPOINT data used instead of the pose_json widget.",
                 ),
-                io.String.Input(
-                    "pose_tags",
-                    optional=True,
-                    default="",
-                    multiline=False,
-                    tooltip="Optional comma-separated tags describing this pose. Passed to the editor so they pre-fill the Save to Gallery dialog.",
-                ),
                 ConditioningAreas.Input(
                     "areas",
                     optional=True,
@@ -1617,9 +1482,6 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
         render_hand = bool(render_hand)
         render_face = bool(render_face)
 
-        pose_tags = kwargs.get("pose_tags", "")
-        pose_tags = pose_tags if isinstance(pose_tags, str) else str(pose_tags)
-
         # If a POSE_KEYPOINT is connected, serialize it to JSON and use it in
         # place of the pose_json widget value.
         pose_keypoint_input = kwargs.get("pose_keypoint")
@@ -1634,7 +1496,7 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
         background_image_uuid, background_image_size = cache_background_image(
             kwargs.get("background_image")
         )
-        ui = lambda pj: _OpenPoseStudioUI(pj, background_image_uuid, background_image_size, pose_tags)
+        ui = lambda pj: _OpenPoseStudioUI(pj, background_image_uuid, background_image_size)
 
         if not pose_json or pose_json.strip() == "":
             # Return empty black image and empty pose if no pose

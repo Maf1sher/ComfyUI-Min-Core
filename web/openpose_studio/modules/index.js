@@ -140,9 +140,7 @@ export function getModules() {
 async function loadOptionalModules() {
     await initI18n();
     const modulePaths = [
-        "./merger.js",
-        "./render.js",
-        "./gallery.js"
+        "./render.js"
     ];
     const results = await Promise.allSettled(
         modulePaths.map((path) => import(path))
@@ -170,13 +168,7 @@ export function createModuleManager(container, openpose) {
         activate,
         deactivateActive,
         handleKeyDown,
-        notifyPresetsLoadStart,
-        notifyPresetFileError,
-        notifyPresetFileLoaded,
-        decoratePreset,
-        notifyPresetsLoaded,
         getTabSummaries,
-        getEmptyActions,
         getModule: (id) => state.moduleMap.get(id),
         isActive: (id) => state.activeId === id,
         setOverlayVisible
@@ -307,46 +299,6 @@ export function createModuleManager(container, openpose) {
         return !!mod.handleKeyDown(event, context);
     }
 
-    function notifyPresetsLoadStart() {
-        state.modules.forEach((mod) => {
-            if (typeof mod.onPresetsLoadStart === "function") {
-                mod.onPresetsLoadStart(context);
-            }
-        });
-    }
-
-    function notifyPresetFileError(info) {
-        state.modules.forEach((mod) => {
-            if (typeof mod.onPresetFileError === "function") {
-                mod.onPresetFileError(info, context);
-            }
-        });
-    }
-
-    function notifyPresetFileLoaded(info) {
-        state.modules.forEach((mod) => {
-            if (typeof mod.onPresetFileLoaded === "function") {
-                mod.onPresetFileLoaded(info, context);
-            }
-        });
-    }
-
-    function decoratePreset(preset, info) {
-        state.modules.forEach((mod) => {
-            if (typeof mod.decoratePreset === "function") {
-                mod.decoratePreset(preset, info, context);
-            }
-        });
-    }
-
-    function notifyPresetsLoaded(info) {
-        state.modules.forEach((mod) => {
-            if (typeof mod.onPresetsLoaded === "function") {
-                mod.onPresetsLoaded(info, context);
-            }
-        });
-    }
-
     function getTabSummaries() {
         return state.modules
             .filter((mod) => mod.summary)
@@ -355,16 +307,6 @@ export function createModuleManager(container, openpose) {
                 icon: mod.summary.icon,
                 title: t(mod.summary.titleKey),
                 description: t(mod.summary.descriptionKey)
-            }));
-    }
-
-    function getEmptyActions() {
-        return state.modules
-            .filter((mod) => mod.emptyAction)
-            .map((mod) => ({
-                id: mod.id,
-                icon: mod.emptyAction.icon,
-                text: t(mod.emptyAction.textKey)
             }));
     }
 

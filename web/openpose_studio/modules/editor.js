@@ -421,7 +421,6 @@ export const poseEditorCanvasWorkflow = {
 			this.saveToNode();
 		});
 		container.querySelector('[data-action="save"]').addEventListener("click", () => this.save());
-		container.querySelector('[data-action="save-gallery"]').addEventListener("click", () => this.saveToGallery());
 		container.querySelector('[data-action="load"]').addEventListener("click", () => this.load());
 		const undoActionBtn = container.querySelector('[data-action="undo"]');
 		if (undoActionBtn) {
@@ -1164,23 +1163,6 @@ export const poseEditorSubsystemWorkflow = {
 				applyEmptySectionLabelStyles(this.cocoKeypointsLabel);
 			}
 			const moduleManager = this.moduleManager;
-			const emptyActions = moduleManager?.getEmptyActions?.() || [];
-			const emptyActionsHtml = emptyActions
-				.map((action) => {
-					const icon = action.icon || "";
-					const text = action.text || "";
-					if (!text) {
-						return "";
-					}
-					return `
-    <div class="openpose-coco-keypoint-item openpose-sidebar-item">
-        ${icon}
-        <div class="openpose-sidebar-text">
-            <span class="openpose-sidebar-title">${text}</span>
-        </div>
-    </div>`;
-				})
-				.join("");
 			const tabSummaries = moduleManager?.getTabSummaries?.() || [];
 			const tabRowsHtml = tabSummaries
 				.map((summary) => {
@@ -1213,7 +1195,6 @@ ${tabRowsHtml}`
             <span class="openpose-sidebar-title">${t("pose_editor.empty.action_insert_preset")}</span>
         </div>
     </div>
-${emptyActionsHtml}
     <div class="openpose-coco-keypoint-item openpose-sidebar-item">
         ${UiIcons.svg('fileJson', { size: 14, className: 'openpose-sidebar-icon' })}
         <div class="openpose-sidebar-text">
@@ -2358,57 +2339,6 @@ ${tabsSectionHtml}
 		URL.revokeObjectURL(a.href);
 	},
 
-	async saveToGallery() {
-		const includeExtras = typeof this.shouldPreserveExtraKeypoints === "function"
-			? this.shouldPreserveExtraKeypoints() : false;
-		const payload = this.buildOpenPosePayload(includeExtras);
-		const defaultTags = (this.node?.properties?.poseTags) || "";
-		const now = new Date();
-		const pad = (n) => String(n).padStart(2, "0");
-		const defaultName = `saved-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-
-		const result = await showPrompt(
-			t("pose_editor.save_dialog.title"),
-			t("pose_editor.save_dialog.name"),
-			defaultName
-		);
-		if (result === null) {
-			return;
-		}
-		const name = result.trim();
-		const tags = await showPrompt(
-			t("pose_editor.save_dialog.title"),
-			t("pose_editor.save_dialog.tags"),
-			defaultTags
-		);
-		if (tags === null) {
-			return;
-		}
-
-		try {
-			const response = await fetch("/mincore/openpose/poses/save", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name,
-					tags: tags.trim(),
-					pose_json: payload,
-				}),
-			});
-			const data = await response.json().catch(() => ({}));
-			if (!response.ok) {
-				throw new Error(data.error || `HTTP ${response.status}`);
-			}
-			const savedName = name || (data.path || "").split("/").pop().replace(/\.json$/i, "");
-			showToast("success", t("gallery.toast.saved", { name: savedName }));
-			if (typeof this.loadPresetsFromJson === "function") {
-				this.loadPresetsFromJson();
-			}
-		} catch (error) {
-			showToast("error", t("pose_editor.save_dialog.error"), String(error?.message || error));
-		}
-	},
-
 	loadJSON(text, filename = "", options = {}) {
 		const { silent = false, presetIndex = null } = options;
 		this._initializing = true;
@@ -2655,7 +2585,7 @@ ${tabsSectionHtml}
 		banner.style.marginTop = "8px";
 		banner.style.flexShrink = "0";
 		
-		// Content wrapper - match pose merger warning style
+		// Content wrapper
 		const content = banner.querySelector(".openpose-canvas-bounds-warning-content");
 		if (content) {
 			content.style.display = "flex";
@@ -3448,7 +3378,6 @@ function buildPoseEditorOverlayHtml() {
                 <div class="openpose-save-row">
                     <button class="openpose-btn" data-action="load">${t("pose_editor.btn.load")}</button>
                     <button class="openpose-btn" data-action="save">${t("pose_editor.btn.save")}</button>
-                    <button class="openpose-btn" data-action="save-gallery">${t("pose_editor.save_to_gallery")}</button>
                 </div>
             </div>
             <div class="openpose-section-group">
