@@ -6,6 +6,11 @@ Crop Info → Values Min is a companion to [Drag Crop Min](drag_crop.md). Connec
 Drag Crop Min's **CROP_JSON** output to **crop_json** to get the crop offsets
 and dimensions as separate values, or as formatted text for other nodes.
 
+## Credits
+
+This node is a port of [ComfyUI-Olm-DragCrop](https://github.com/o-l-l-i/ComfyUI-Olm-DragCrop)
+by [o-l-l-i](https://github.com/o-l-l-i).
+
 For crops from Drag Crop Min, **left**, **top**, **right**, and **bottom** are
 pixel amounts removed from each side of the source image. In particular,
 **right** and **bottom** are margins, not the crop's ending x/y coordinates.
