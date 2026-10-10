@@ -8,7 +8,7 @@
 from .image_latch import ImageLatch
 from .latent_latch import LatentLatch
 from .mask_painter_latch import MaskPainterLatch
-from .openpose_studio import MinCore_OpenPoseStudio, MinCore_ShowString
+from .openpose_studio import MinCore_OpenPoseStudio
 from .pose_gallery import MinCore_PoseGallery
 from .drag_crop import DragCrop, CropInfoInterpreter
 from .sdxl_unique_tags import MinCore_UniqueSDXLTags
@@ -19,7 +19,6 @@ NODE_CLASS_LIST = [
     LatentLatch,
     MaskPainterLatch,
     MinCore_OpenPoseStudio,
-    MinCore_ShowString,
     MinCore_PoseGallery,
     DragCrop,
     CropInfoInterpreter,

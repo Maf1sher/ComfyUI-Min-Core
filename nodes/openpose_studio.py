@@ -5,7 +5,7 @@ Port of ComfyUI-OpenPose-Studio (andreszs) for the Min-Core pack. Renders pose
 JSON from the built-in canvas editor into an IMAGE, returns the filtered JSON,
 and converts the data into POSE_KEYPOINT format for comfyui_controlnet_aux
 downstream nodes. Also provides read-only pose preset endpoints, browser-local
-render style sync, and the Show String helper output node.
+render style sync.
 """
 
 import json
@@ -1574,35 +1574,6 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
                 empty_pose,
                 ui=ui(pose_json),
             )
-
-
-class MinCore_ShowString(io.ComfyNode):
-    """Display node for text output (input list aware)."""
-
-    @classmethod
-    def define_schema(cls) -> io.Schema:
-        return io.Schema(
-            node_id="MinCore_ShowString",
-            display_name="Show String",
-            category="Min-Core",
-            is_output_node=True,
-            is_input_list=True,
-            description=(
-                "Display node that shows a string value in the UI. All inputs "
-                "are received as lists."
-            ),
-            inputs=[
-                io.String.Input(
-                    "text",
-                    force_input=True,
-                    tooltip="Text to display.",
-                ),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, text=None) -> io.NodeOutput:
-        return io.NodeOutput(ui={"text": text})
 
 
 # ── Startup message ──────────────────────────────────────────────────────────
