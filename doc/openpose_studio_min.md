@@ -20,6 +20,11 @@ over `pose_json` during execution.
 The **Render** tab changes the appearance of the final IMAGE. A background image
 is only an editing reference; it is not included in the output.
 
+## Credits
+
+Based on [ComfyUI-OpenPose-Studio](https://github.com/andreszs/comfyui-openpose-studio)
+by andreszs.
+
 ## Keyboard shortcuts
 
 - **Ctrl/Cmd+Z** — Undo; **Ctrl/Cmd+Shift+Z** or **Ctrl/Cmd+Y** — Redo.
