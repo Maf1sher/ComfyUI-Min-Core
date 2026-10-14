@@ -193,6 +193,27 @@ function collectAreasFromGraph(openposeNode) {
 	}
 }
 
+function hasConnectedPoseKeypoint(node) {
+	return !!node?.inputs?.some(input => input.name === "pose_keypoint" && input.link != null);
+}
+
+function getLocalPoseJson(node) {
+	const widgetValue = node?.jsonWidget?.value;
+	if (typeof widgetValue === "string" && widgetValue.trim()) {
+		return widgetValue;
+	}
+	return typeof node?.properties?.savedPose === "string" ? node.properties.savedPose : "";
+}
+
+function getPoseJsonForEditor(node) {
+	if (hasConnectedPoseKeypoint(node) && node.editorPoseWidget?.value !== true) {
+		if (typeof node._mincoreIncomingPose === "string") {
+			return node._mincoreIncomingPose;
+		}
+	}
+	return getLocalPoseJson(node);
+}
+
 /**
  * Render pose JSON to a data URL for node preview.
  * @param {string|object} poseJson - JSON string or parsed pose data
@@ -464,8 +485,10 @@ class OpenPosePanel {
         this._nodeBgSize = node._mincoreBgSize || "";
         this._nodeBgImage = null;
 
-        // Save original pose for cancel functionality - both as string and deep-cloned JSON
-        this.originalPose = node.properties.savedPose || "";
+        // Keep the editor's initial pose separate from the local workflow value.
+        this.originalLocalPose = getLocalPoseJson(node);
+        this.originalUseEditorPose = node.editorPoseWidget?.value === true;
+        this.originalPose = getPoseJsonForEditor(node);
         try {
             this.originalPoseData = JSON.parse(this.originalPose);
         } catch (e) {
@@ -688,7 +711,7 @@ class OpenPosePanel {
 
 		// Extract canvas dimensions from saved pose BEFORE initializing Canvas2D
 		// This prevents rendering at default 512×512 and then resizing
-		const savedDimensions = this.extractCanvasDimensionsFromPose(this.node.properties.savedPose);
+		const savedDimensions = this.extractCanvasDimensionsFromPose(this.originalPose);
 		       if (savedDimensions) {
 			       this.canvasWidth = savedDimensions.width;
 			       this.canvasHeight = savedDimensions.height;
@@ -992,10 +1015,10 @@ class OpenPosePanel {
         this.setupEditorControls(container);
 
         // Check if node has existing pose data with valid keypoints
-        const hasPoseData = this.hasPoseData(this.node.properties.savedPose);
+        const hasPoseData = this.hasPoseData(this.originalPose);
 
         if (hasPoseData) {
-            const error = this.loadJSON(this.node.properties.savedPose, "", { silent: true });
+            const error = this.loadJSON(this.originalPose, "", { silent: true });
             if (error) {
                 console.error("[OpenPose Studio] Failed to restore saved pose JSON", error)
 				this.resizeCanvas(this.canvasWidth, this.canvasHeight)
@@ -1011,6 +1034,7 @@ class OpenPosePanel {
         }
         this.recordHistory();
         this.updateRemoveState();
+        this.originalPose = this.serializeJSON();
 
         // Apply optional node-input background (async — fetches PNG from REST).
         if (this._nodeBgUuid) {
@@ -2043,12 +2067,15 @@ class OpenPosePanel {
 			this.node.properties = {};
 		}
 		
-		// Restore from the string representation
-		this.node.properties.savedPose = this.originalPose;
+		// Restore the saved editor pose and source selection, not an imported input.
+		this.node.properties.savedPose = this.originalLocalPose;
 		
 		// Restore the widget value
 		if (this.node.jsonWidget) {
-			this.node.jsonWidget.value = this.originalPose;
+			this.node.jsonWidget.value = this.originalLocalPose;
+		}
+		if (this.node.editorPoseWidget) {
+			this.node.editorPoseWidget.value = this.originalUseEditorPose;
 		}
 		
 		// Trigger preview update to reflect restoration
@@ -2227,6 +2254,41 @@ class OpenPosePanel {
 		}
 	}
 
+	loadIncomingPose(poseJson) {
+		if (!this.renderer) {
+			return false;
+		}
+
+		const dimensions = this.extractCanvasDimensionsFromPose(poseJson);
+		this._initializing = true;
+		if (dimensions) {
+			this.resizeCanvas(dimensions.width, dimensions.height);
+		}
+
+		if (this.hasPoseData(poseJson)) {
+			const error = this.loadJSON(poseJson, "", { silent: true });
+			if (error) {
+				this._initializing = false;
+				return false;
+			}
+		} else {
+			this.resetCanvas();
+			this.recordHistory();
+		}
+
+		this.originalPose = this.serializeJSON();
+		try {
+			this.originalPoseData = JSON.parse(this.originalPose);
+			this.workingPoseData = JSON.parse(this.originalPose);
+		} catch {
+			this.originalPoseData = null;
+			this.workingPoseData = null;
+		}
+		this.updateRemoveState();
+		this.updateUndoButton();
+		return true;
+	}
+
 	extractCanvasDimensionsFromPose(poseJson) {
 		/**
 		 * Extract canvas width and height from saved pose JSON.
@@ -2311,9 +2373,7 @@ app.registerExtension({
 
     // Listen for executed events directly on the api so the OpenPose Studio
     // node preview is always refreshed after execution, regardless of whether
-    // the pose_json input is a typed widget value, a connected STRING link, or
-    // a connected POSE_KEYPOINT link (the Python side serialises POSE_KEYPOINT
-    // to JSON and echoes it back through the UI dict in all cases).
+    // the pose comes from the editor or from a connected POSE_KEYPOINT input.
     async setup(app) {
         const queuePrompt = app?.queuePrompt;
         if (typeof queuePrompt === "function" && !app.__openPoseRenderStyleQueuePatched) {
@@ -2341,16 +2401,24 @@ app.registerExtension({
             node._mincoreBgSize = typeof bgSize === "string" ? bgSize : "";
 
             const poseJson = detail.output?.pose_json?.[0];
-            if (typeof poseJson !== "string" || poseJson.trim().length === 0) {
-                // No pose payload, but background may still need updating.
-                if (node.openPosePanel && typeof node.openPosePanel.updateNodeInputBackground === "function") {
-                    node.openPosePanel.updateNodeInputBackground(node._mincoreBgUuid, node._mincoreBgSize);
+            const poseSource = detail.output?.pose_source?.[0] || "editor";
+            if (typeof poseJson === "string") {
+                if (poseSource === "input") {
+                    // Keep imported data transient. It must not become the local
+                    // editor value, or it would mask later input updates.
+                    node._mincoreIncomingPose = poseJson;
+                    if (
+                        node.openPosePanel
+                        && !node.openPosePanel.hasUnsavedChanges()
+                    ) {
+                        node.openPosePanel.loadIncomingPose(poseJson);
+                    }
+                } else {
+                    node.properties.savedPose = poseJson;
+                    if (node.jsonWidget) node.jsonWidget.value = poseJson;
                 }
-                return;
+                if (typeof node.updatePreview === "function") node.updatePreview();
             }
-            node.properties.savedPose = poseJson;
-            if (node.jsonWidget) node.jsonWidget.value = poseJson;
-            if (typeof node.updatePreview === "function") node.updatePreview();
             // Post-execution: refresh area overlay in any open editor panel
             if (node.openPosePanel && typeof node.openPosePanel.setConditioningAreas === "function") {
                 try {
@@ -2400,11 +2468,13 @@ app.registerExtension({
                 // Ephemeral editor background state (set on execution, not serialized).
                 this._mincoreBgUuid = "";
                 this._mincoreBgSize = "";
+                this._mincoreIncomingPose = null;
 
                 this.serialize_widgets = true;
 
                 // Find the pose_json widget (created by Python INPUT_TYPES)
                 this.jsonWidget = this.widgets.find(w => w.name === "pose_json");
+                this.editorPoseWidget = this.widgets.find(w => w.name === "use_editor_pose");
 
                 this.openOpenPoseEditor = () => {
                     const graphCanvas = LiteGraph.LGraphCanvas.active_canvas
@@ -2513,10 +2583,7 @@ app.registerExtension({
                     if (!this.jsonWidget && Array.isArray(this.widgets)) {
                         this.jsonWidget = this.widgets.find(w => w.name === "pose_json");
                     }
-                    const widgetValue = this.jsonWidget ? this.jsonWidget.value : null;
-                    const poseJson = (widgetValue && (typeof widgetValue !== "string" || widgetValue.trim().length > 0))
-                        ? widgetValue
-                        : this.properties.savedPose;
+                    const poseJson = getPoseJsonForEditor(this);
                     if (!poseJson) {
                         previewImgEl.src = "";
                         previewImgEl.style.display = "none";
@@ -2550,14 +2617,13 @@ app.registerExtension({
                         } else if (value && typeof value === "object") {
                             try { node.properties.savedPose = JSON.stringify(value); } catch {}
                         }
+                        if (node.editorPoseWidget) node.editorPoseWidget.value = true;
                         if (typeof node.updatePreview === "function") node.updatePreview();
                     };
                 }
 
-                // Sync incoming connected Pose JSON back into widget state and preview
-                // after each server-side execution. Handled globally in the extension
-                // setup() via api.addEventListener("executed", ...) to avoid relying
-                // on the indirect node.onExecuted dispatch chain.
+                // Execution events keep the imported pose separate from the local
+                // widget value so subsequent upstream changes remain available.
 
                 // Set reasonable node size (will auto-expand for widgets)
                 const targetSize = this.computeSize();
@@ -2605,6 +2671,13 @@ app.registerExtension({
                             // Ignore serialization errors to avoid breaking widget changes
                         }
                     }
+                    if (this.editorPoseWidget) {
+                        this.editorPoseWidget.value = true;
+                    }
+                    if (this.updatePreview) {
+                        this.updatePreview();
+                    }
+                } else if (name === "use_editor_pose") {
                     if (this.updatePreview) {
                         this.updatePreview();
                     }

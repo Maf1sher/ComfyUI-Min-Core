@@ -1381,15 +1381,23 @@ async def openpose_editor_version(request):
 # ── UI output ────────────────────────────────────────────────────────────────
 
 class _OpenPoseStudioUI(_UIOutput):
-    def __init__(self, pose_json: str, background_image_uuid: str = "", background_image_size: str = ""):
+    def __init__(
+        self,
+        pose_json: str,
+        pose_source: str,
+        background_image_uuid: str = "",
+        background_image_size: str = "",
+    ):
         super().__init__()
         self.pose_json = pose_json
+        self.pose_source = pose_source
         self.background_image_uuid = background_image_uuid
         self.background_image_size = background_image_size
 
     def as_dict(self) -> dict:
         return {
             "pose_json": [self.pose_json],
+            "pose_source": [self.pose_source],
             "background_image_uuid": [self.background_image_uuid],
             "background_image_size": [self.background_image_size],
         }
@@ -1398,7 +1406,7 @@ class _OpenPoseStudioUI(_UIOutput):
 # ── Nodes ────────────────────────────────────────────────────────────────────
 
 class MinCore_OpenPoseStudio(io.ComfyNode):
-    """Render pose JSON from the built-in editor into IMAGE / JSON / POSE_KEYPOINT."""
+    """Edit and render local or connected pose data."""
 
     @classmethod
     def define_schema(cls) -> io.Schema:
@@ -1408,9 +1416,8 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
             category="Min-Core",
             is_output_node=True,
             description=(
-                "Render a pose from the OpenPose Studio editor. Converts the "
-                "editor JSON into an IMAGE preview, filtered JSON, and the "
-                "POSE_KEYPOINT format consumed by comfyui_controlnet_aux."
+                "Edit a connected POSE_KEYPOINT or a local pose, then render it "
+                "as an IMAGE and output JSON and POSE_KEYPOINT data."
             ),
             search_aliases=["OpenPose Studio", "OpenPose Studio Min", "pose editor"],
             inputs=[
@@ -1418,7 +1425,7 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
                     "pose_json",
                     default="",
                     multiline=False,
-                    tooltip="Pose JSON from the OpenPose Studio editor.",
+                    tooltip="Local pose JSON saved by the OpenPose Studio editor.",
                 ),
                 io.Boolean.Input(
                     "render_body",
@@ -1435,10 +1442,23 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
                     default=True,
                     tooltip="Whether to render the face keypoints.",
                 ),
+                io.Boolean.Input(
+                    "use_editor_pose",
+                    default=False,
+                    tooltip=(
+                        "When enabled, use the pose saved in the editor instead "
+                        "of the connected pose_keypoint input. Applying editor "
+                        "changes enables this automatically."
+                    ),
+                ),
                 PoseKeypoint.Input(
                     "pose_keypoint",
                     optional=True,
-                    tooltip="Optional DWPose POSE_KEYPOINT data used instead of the pose_json widget.",
+                    tooltip=(
+                        "Optional pose to load into the editor. When connected, "
+                        "it is used until an editor pose is applied or "
+                        "use_editor_pose is enabled."
+                    ),
                 ),
                 ConditioningAreas.Input(
                     "areas",
@@ -1482,12 +1502,12 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
         render_hand = bool(render_hand)
         render_face = bool(render_face)
 
-        # If a POSE_KEYPOINT is connected, serialize it to JSON and use it in
-        # place of the pose_json widget value.
+        pose_source = "editor"
         pose_keypoint_input = kwargs.get("pose_keypoint")
-        if pose_keypoint_input is not None:
+        if pose_keypoint_input is not None and not bool(kwargs.get("use_editor_pose", False)):
             try:
                 pose_json = json.dumps(pose_keypoint_input)
+                pose_source = "input"
             except Exception:
                 pass
 
@@ -1496,7 +1516,9 @@ class MinCore_OpenPoseStudio(io.ComfyNode):
         background_image_uuid, background_image_size = cache_background_image(
             kwargs.get("background_image")
         )
-        ui = lambda pj: _OpenPoseStudioUI(pj, background_image_uuid, background_image_size)
+        ui = lambda pj: _OpenPoseStudioUI(
+            pj, pose_source, background_image_uuid, background_image_size
+        )
 
         if not pose_json or pose_json.strip() == "":
             # Return empty black image and empty pose if no pose

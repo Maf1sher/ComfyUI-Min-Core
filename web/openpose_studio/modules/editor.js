@@ -2170,6 +2170,10 @@ ${tabsSectionHtml}
 		if (this.node.jsonWidget) {
 			this.node.jsonWidget.value = json;
 		}
+		// An applied edit becomes the node's local source instead of the linked input.
+		if (this.node.editorPoseWidget) {
+			this.node.editorPoseWidget.value = true;
+		}
 		// Update node preview
 		if (this.node.updatePreview) {
 			this.node.updatePreview();

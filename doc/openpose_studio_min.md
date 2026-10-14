@@ -14,8 +14,12 @@ Right-click a keypoint to hide it from the pose; it is treated as a missing poin
 in the outputs.
 **Apply** saves the pose with the workflow and runs the node; **Cancel** discards
 the current edits. **Refresh inputs** re-runs this node and its upstream dependencies
-without closing the editor. If `pose_keypoint` is connected, it takes precedence
-over `pose_json` during execution.
+without closing the editor. Connect one OpenPose Studio Min node's **KPS** output
+to another node's **pose_keypoint** input, then execute the graph or refresh inputs
+to load that pose into the second editor.
+Applying edits makes the edited pose the second node's source, so the connected
+input cannot overwrite the changes. Turn off **use_editor_pose** to load the
+connected pose again on the next execution.
 
 The **Render** tab changes the appearance of the final IMAGE. A background image
 is only an editing reference; it is not included in the output.
@@ -37,14 +41,18 @@ Shortcuts are inactive while typing in an input or selecting a dropdown value.
 
 ## Inputs
 
-- **pose_json** (STRING, default: `""`) — Pose data to edit or render. A
-  connected `pose_keypoint` input overrides this value.
+- **pose_json** (STRING, default: `""`) — Local pose saved by the editor. Used
+  when `pose_keypoint` is not connected or **use_editor_pose** is enabled.
 - **render_body** (Boolean, default: `true`) — Show the body skeleton. When off,
   IMAGE is black and KPS contains no people.
 - **render_hand** (Boolean, default: `true`) — Show and include hand keypoints.
 - **render_face** (Boolean, default: `true`) — Show and include face keypoints.
 - **pose_keypoint** (POSE_KEYPOINT, optional) — Pose data from compatible nodes,
-  such as DWPose.
+  such as another OpenPose Studio Min node or DWPose. It is loaded into the editor
+  unless **use_editor_pose** is enabled.
+- **use_editor_pose** (Boolean, default: `false`) — Selects the pose saved in this
+  node's editor instead of the connected `pose_keypoint`. **Apply** enables this
+  automatically; turn it off to reload the connected pose.
 - **areas** (CONDITIONING_AREAS, optional) — Shows conditioning-area guides in
   the editor only; does not affect the outputs.
 - **background_image** (IMAGE, optional) — Editor reference image. The canvas
