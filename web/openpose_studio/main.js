@@ -14,6 +14,7 @@ import {
 import { OpenPoseCanvas2D } from "./canvas2d.js";
 import {
 	showToast,
+	showConfirm,
 	getFormatDisplayName,
 	getComfyThemeSafe,
 	getThemeOverlayColor,
@@ -434,9 +435,10 @@ function renderPoseToDataURL(poseJson, previewWidth = PREVIEW_WIDTH, previewHeig
 // subgraph itself. The node is an output node, so the prompt validates and its
 // upstream dependencies (LoadImage, DWPose, ...) execute along with it.
 async function _queueNode(node) {
-    if (node?.id == null || node.id < 0) return;
+    if (node?.id == null || node.id < 0) return false;
     try {
         await app.queuePrompt(0, 1, [String(node.id)]);
+        return true;
     } catch (err) {
         console.error("OpenPose Studio queue error:", err);
         app.extensionManager?.toast?.add?.({
@@ -445,6 +447,7 @@ async function _queueNode(node) {
             detail: String(err),
             life: 6000,
         });
+        return false;
     }
 }
 
@@ -2031,13 +2034,51 @@ class OpenPosePanel {
 		this.panel.close();
 	}
 
-	/**
-	 * Queue only this node (and its upstream dependencies) for execution
-	 * without closing the editor. Used by the toolbar Refresh button so the
-	 * node-input background / pose_keypoint refresh in place.
-	 */
-	queueNodeExecution() {
-		_queueNode(this.node);
+	async queueBackgroundRefresh() {
+		if (this.node._mincoreRefreshKind) return;
+		const editorPose = getPoseJsonForEditor(this.node);
+		const preserveEditorPose = typeof editorPose === "string" && editorPose.trim().length > 0;
+		const previousPose = this.node.jsonWidget?.value;
+		const wasUsingEditorPose = this.node.editorPoseWidget?.value === true;
+		this.node._mincoreRefreshKind = "background";
+		if (preserveEditorPose) {
+			if (this.node.jsonWidget) this.node.jsonWidget.value = editorPose;
+			if (this.node.editorPoseWidget) this.node.editorPoseWidget.value = true;
+		}
+		const queued = await _queueNode(this.node);
+		if (preserveEditorPose) {
+			if (this.node.jsonWidget) this.node.jsonWidget.value = previousPose;
+			if (this.node.editorPoseWidget) this.node.editorPoseWidget.value = wasUsingEditorPose;
+		}
+		if (!queued && this.node._mincoreRefreshKind === "background") {
+			this.node._mincoreRefreshKind = null;
+		}
+	}
+
+	async queueKeypointRefresh() {
+		if (!hasConnectedPoseKeypoint(this.node)) {
+			showToast("warn", "OpenPose Studio", t("pose_editor.toast.no_pose_keypoint"));
+			return;
+		}
+		if (this.node._mincoreRefreshKind) return;
+		if (this.hasUnsavedChanges()) {
+			const confirmed = await showConfirm(
+				t("pose_editor.confirm.refresh_keypoints.title"),
+				t("pose_editor.confirm.refresh_keypoints.body"),
+			);
+			if (!confirmed) return;
+		}
+
+		const wasUsingEditorPose = this.node.editorPoseWidget?.value === true;
+		this.node._mincoreRefreshKind = "keypoints";
+		this.node._mincoreRefreshUseEditor = wasUsingEditorPose;
+		if (this.node.editorPoseWidget) this.node.editorPoseWidget.value = false;
+		const queued = await _queueNode(this.node);
+		if (this.node.editorPoseWidget) this.node.editorPoseWidget.value = wasUsingEditorPose;
+		if (!queued && this.node._mincoreRefreshKind === "keypoints") {
+			this.node._mincoreRefreshKind = null;
+			this.node._mincoreRefreshUseEditor = false;
+		}
 	}
 
 	hasUnsavedChanges() {
@@ -2254,9 +2295,16 @@ class OpenPosePanel {
 		}
 	}
 
-	loadIncomingPose(poseJson) {
+	loadIncomingPose(poseJson, { makeLocal = false } = {}) {
 		if (!this.renderer) {
 			return false;
+		}
+		if (makeLocal) {
+			this.originalLocalPose = poseJson;
+			this.originalUseEditorPose = true;
+			this.node.properties.savedPose = poseJson;
+			if (this.node.jsonWidget) this.node.jsonWidget.value = poseJson;
+			if (this.node.editorPoseWidget) this.node.editorPoseWidget.value = true;
 		}
 
 		const dimensions = this.extractCanvasDimensionsFromPose(poseJson);
@@ -2386,41 +2434,63 @@ app.registerExtension({
             void syncRenderStyleToServer();
         }
 
+        const clearRefreshState = () => {
+            for (const node of app.graph?._nodes || []) {
+                if (node.comfyClass === "MinCore_OpenPoseStudio") {
+                    node._mincoreRefreshKind = null;
+                    node._mincoreRefreshUseEditor = false;
+                }
+            }
+        };
+        app.api.addEventListener("execution_error", clearRefreshState);
+        app.api.addEventListener("execution_interrupted", clearRefreshState);
+
         app.api.addEventListener("executed", ({ detail }) => {
             const nodeId = detail.display_node || detail.node;
             const node = app.graph.getNodeById(nodeId);
             if (!node || node.comfyClass !== "MinCore_OpenPoseStudio") return;
             if (!node.properties) node.properties = {};
 
-            // Optional editor background image (fetched from the REST cache).
-            // Stored as ephemeral runtime fields (not serialized to workflows —
-            // the cache token only lives for the current execution).
-            const bgUuid = detail.output?.background_image_uuid?.[0];
-            const bgSize = detail.output?.background_image_size?.[0];
-            node._mincoreBgUuid = typeof bgUuid === "string" ? bgUuid : "";
-            node._mincoreBgSize = typeof bgSize === "string" ? bgSize : "";
+            const refreshKind = node._mincoreRefreshKind || "";
+            const refreshUseEditor = node._mincoreRefreshUseEditor === true;
+            node._mincoreRefreshKind = null;
+            node._mincoreRefreshUseEditor = false;
+
+            if (refreshKind !== "keypoints") {
+                // Optional editor background image (fetched from the REST cache).
+                // The cache token only lives for the current execution.
+                const bgUuid = detail.output?.background_image_uuid?.[0];
+                const bgSize = detail.output?.background_image_size?.[0];
+                node._mincoreBgUuid = typeof bgUuid === "string" ? bgUuid : "";
+                node._mincoreBgSize = typeof bgSize === "string" ? bgSize : "";
+            }
 
             const poseJson = detail.output?.pose_json?.[0];
             const poseSource = detail.output?.pose_source?.[0] || "editor";
-            if (typeof poseJson === "string") {
+            if (refreshKind !== "background" && typeof poseJson === "string") {
                 if (poseSource === "input") {
-                    // Keep imported data transient. It must not become the local
-                    // editor value, or it would mask later input updates.
+                    // Normal input refreshes stay transient. A forced refresh
+                    // while using the editor promotes the new input to its local
+                    // source, replacing the locked pose intentionally.
                     node._mincoreIncomingPose = poseJson;
-                    if (
-                        node.openPosePanel
-                        && !node.openPosePanel.hasUnsavedChanges()
-                    ) {
-                        node.openPosePanel.loadIncomingPose(poseJson);
+                    const makeLocal = refreshKind === "keypoints" && refreshUseEditor;
+                    if (node.openPosePanel && (refreshKind === "keypoints" || !node.openPosePanel.hasUnsavedChanges())) {
+                        node.openPosePanel.loadIncomingPose(poseJson, { makeLocal });
+                    } else if (makeLocal) {
+                        node.properties.savedPose = poseJson;
+                        if (node.jsonWidget) node.jsonWidget.value = poseJson;
+                        if (node.editorPoseWidget) node.editorPoseWidget.value = true;
                     }
+                } else if (refreshKind === "keypoints") {
+                    showToast("warn", "OpenPose Studio", t("pose_editor.toast.no_pose_keypoint_data"));
                 } else {
                     node.properties.savedPose = poseJson;
                     if (node.jsonWidget) node.jsonWidget.value = poseJson;
                 }
                 if (typeof node.updatePreview === "function") node.updatePreview();
             }
-            // Post-execution: refresh area overlay in any open editor panel
-            if (node.openPosePanel && typeof node.openPosePanel.setConditioningAreas === "function") {
+            // A manual background/keypoint refresh updates only that editor input.
+            if (!refreshKind && node.openPosePanel && typeof node.openPosePanel.setConditioningAreas === "function") {
                 try {
                     const _postExecAreas = collectAreasFromGraph(node);
                     node.openPosePanel.setConditioningAreas(_postExecAreas);
@@ -2428,7 +2498,7 @@ app.registerExtension({
                     // ignore
                 }
             }
-            if (node.openPosePanel && typeof node.openPosePanel.updateNodeInputBackground === "function") {
+            if (refreshKind !== "keypoints" && node.openPosePanel && typeof node.openPosePanel.updateNodeInputBackground === "function") {
                 node.openPosePanel.updateNodeInputBackground(node._mincoreBgUuid, node._mincoreBgSize);
             }
         });
@@ -2469,6 +2539,8 @@ app.registerExtension({
                 this._mincoreBgUuid = "";
                 this._mincoreBgSize = "";
                 this._mincoreIncomingPose = null;
+                this._mincoreRefreshKind = null;
+                this._mincoreRefreshUseEditor = false;
 
                 this.serialize_widgets = true;
 

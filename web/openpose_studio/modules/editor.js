@@ -428,8 +428,11 @@ export const poseEditorCanvasWorkflow = {
 			this.undoButton = undoActionBtn;
 		}
 		container.querySelector('[data-action="ok"]').addEventListener("click", () => this.confirmAndClose());
-		container.querySelector('[data-action="queue-node"]')?.addEventListener("click", () => {
-			this.queueNodeExecution();
+		container.querySelector('[data-action="refresh-background"]')?.addEventListener("click", () => {
+			this.queueBackgroundRefresh();
+		});
+		container.querySelector('[data-action="refresh-keypoints"]')?.addEventListener("click", () => {
+			this.queueKeypointRefresh();
 		});
 		container.querySelector('[data-action="preset-prev"]').addEventListener("click", () => {
 			this.stepPreset(-1);
@@ -3431,7 +3434,10 @@ function buildPoseEditorOverlayHtml() {
             </div>
             <div class="openpose-spacer"></div>
             <div class="openpose-footer-actions-row">
-                <button class="openpose-btn" data-action="queue-node" title="${t("pose_editor.btn.refresh_inputs")}">${t("pose_editor.btn.refresh_inputs")}</button>
+                <button class="openpose-btn" data-action="refresh-background" title="${t("pose_editor.btn.refresh_background")}">${t("pose_editor.btn.refresh_background")}</button>
+                <button class="openpose-btn" data-action="refresh-keypoints" title="${t("pose_editor.btn.refresh_keypoints")}">${t("pose_editor.btn.refresh_keypoints")}</button>
+            </div>
+            <div class="openpose-footer-actions-row">
                 <button class="openpose-btn openpose-cancel-btn" data-action="cancel">${t("pose_editor.btn.cancel")}</button>
                 <button class="openpose-btn openpose-apply-btn" data-action="ok">${t("pose_editor.btn.apply")}</button>
             </div>
@@ -3541,10 +3547,9 @@ export function applyPoseEditorStyles(container, options = {}) {
     
     // --- Keypoint hover logic using hoveredKeypointName ---
     if (!container._hoveredKeypointName) container._hoveredKeypointName = null;
-    const footerActionsRow = container.querySelector(".openpose-footer-actions-row");
-    if (footerActionsRow) {
-		footerActionsRow.classList.add("ope-openpose-shell-footer-row");
-    }
+    container.querySelectorAll(".openpose-footer-actions-row").forEach((row) => {
+		row.classList.add("ope-openpose-shell-footer-row");
+    });
 }
 
 export const poseEditorOverlay = {

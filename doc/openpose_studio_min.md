@@ -13,13 +13,17 @@ Choose a preset or load a pose JSON file, then edit the keypoints on the canvas.
 Right-click a keypoint to hide it from the pose; it is treated as a missing point
 in the outputs.
 **Apply** saves the pose with the workflow and runs the node; **Cancel** discards
-the current edits. **Refresh inputs** re-runs this node and its upstream dependencies
-without closing the editor. Connect one OpenPose Studio Min node's **KPS** output
-to another node's **pose_keypoint** input, then execute the graph or refresh inputs
-to load that pose into the second editor.
+the current edits. **Refresh background** re-runs this node and its upstream
+dependencies and updates the editor background without reloading its keypoints.
+**Refresh keypoints** reloads the connected pose into the editor, even when
+**use_editor_pose** is enabled; it asks before replacing unapplied edits. Connect
+one OpenPose Studio Min node's **KPS** output to another node's **pose_keypoint**
+input, then execute the graph or refresh keypoints to load that pose into the
+second editor.
 Applying edits makes the edited pose the second node's source, so the connected
-input cannot overwrite the changes. Turn off **use_editor_pose** to load the
-connected pose again on the next execution.
+input cannot overwrite the changes. **Refresh keypoints** can explicitly replace
+that local pose with the latest connected pose; turn off **use_editor_pose** to
+use the connected pose automatically on later executions.
 
 The **Render** tab changes the appearance of the final IMAGE. A background image
 is only an editing reference; it is not included in the output.
@@ -52,7 +56,8 @@ Shortcuts are inactive while typing in an input or selecting a dropdown value.
   unless **use_editor_pose** is enabled.
 - **use_editor_pose** (Boolean, default: `false`) — Selects the pose saved in this
   node's editor instead of the connected `pose_keypoint`. **Apply** enables this
-  automatically; turn it off to reload the connected pose.
+  automatically; turn it off to use the connected pose automatically. **Refresh
+  keypoints** forces a reload even while enabled.
 - **areas** (CONDITIONING_AREAS, optional) — Shows conditioning-area guides in
   the editor only; does not affect the outputs.
 - **background_image** (IMAGE, optional) — Editor reference image. The canvas
